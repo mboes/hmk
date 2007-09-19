@@ -73,16 +73,6 @@ We can now define a few utility functions:
 >                    map (\(Rule t _ r cmp) -> (t, Label t r cmp undefined)) rs
 >           mkLabel (preds, n, t, sucs) = (preds, n, labels Map.! t, sucs)
 
-A mapping between targets and node identifiers in the graph.
-
-> buildNodeMap :: Ord a => DepGraph m a -> Map.Map a G.Node
-> buildNodeMap =
->     Map.fromList . inverse . map (\(n,l) -> (n, lTarget l)) . G.labNodes
->     where inverse = map (\(a,b) -> (b,a))
->
-> t2n :: Ord a => Map.Map a G.Node -> a -> G.Node
-> t2n m t = m Map.! t
-
 Return the list of dependencies wrt whom target is out of date.
 
 > outOfDate :: Monad m => Cmp m a -> a -> [a] -> m [a]
@@ -102,8 +92,8 @@ dependencies.
 
 > shrink :: Ord a => [a] -> DepGraph m a -> DepGraph m a
 > shrink ts g = G.delNodes (G.nodes (foldr f g ns)) g
->     where ns = map (m Map.!) ts
->           m = buildNodeMap g
+>     where ns = map (fst . G.mkNode_ m) ts
+>           m = G.fromGraph (G.nmap lTarget g)
 >           f n g = case G.match n g of
 >                     (Just c, g') -> foldr f g' (G.suc' c)
 >                     (Nothing, g') -> g'
