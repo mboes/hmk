@@ -131,9 +131,9 @@ schedule of tasks can be derived.
 >     >>= (**) schedule
 >   where (**) = (.) return
 >         guard p s x = if p x then return x else fail s
->         errAmb = "There is more than one way to build the targets."
 >         errCyclic = "There are cycles in the dependency graph."
->         isAmbiguous _ = False
+>         errAmb = "There is more than one way to build the targets."
+>         isAmbiguous _ = False -- xxx
 
 > gmapM :: (G.DynGraph gr, Monad m) =>
 >          (G.Context a b -> m (G.Context c d)) -> gr a b -> m (gr c d)
