@@ -37,7 +37,7 @@ date.
 >                      , isOOD :: Cmp m a }
 
 The rules induce a dependency graph. We label each edge with its
-Tdestination for convenience.
+destination for convenience.
 
 > type DepGraph m a = G.Gr (Label m a) a
 > type Context m a = G.Context (Label m a) a
@@ -57,8 +57,9 @@ date nodes.
 The dependency graph is used to determine a set of tasks to accomplish
 and the order in which these tasks should be done.
 
-> type Task m = m ()
+> type Task m = m Result
 > type Schedule m = [Task m]
+> data Result = TaskSuccess | TaskFailure
 
 We can now define a few utility functions:
 
