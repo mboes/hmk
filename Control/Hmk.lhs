@@ -45,16 +45,14 @@ destination for convenience.
 > type Context m a = G.Context (Label m a) a
 
 where labels are represented as follows. We use tags to mark out of
-date nodes.
+date nodes. Currently we tag each node with the list of out of date
+prerequesites.
 
-> data Label m a = Label { lTarget :: a
->                      , lRecipe :: Task m
->                      , lOOD :: Cmp m a
->                      , lTag :: Tag }
-> data Tag = Make | Ignore
+> data Label m a = Label { lbl_rule :: Rule m a
+>                        , lbl_tag :: [a] }
 >
 > instance Show a => Show (Label m a) where
->     show (Label t _ _ _) = show t
+>     show (Label r _) = show (target r)
 
 The dependency graph is used to determine a set of tasks to accomplish
 and the order in which these tasks should be done.
@@ -73,7 +71,7 @@ We can now define a few utility functions:
 >     where edges r@(Rule{target=t,prereqs=ps}) = zipWith3 (,,) (repeat t) ps ps
 >           vertices (Rule{target=t,prereqs=ps}) = t : ps
 >           labels = Map.fromList $
->                    map (\(Rule t _ r cmp) -> (t, Label t r cmp undefined)) rs
+>                    map (\r -> (target r, Label r undefined)) rs
 >           mkLabel (preds, n, t, sucs) = (preds, n, labels Map.! t, sucs)
 
 Return the list of dependencies wrt whom target is out of date.
@@ -82,11 +80,10 @@ Return the list of dependencies wrt whom target is out of date.
 > outOfDate cmp target deps = filterM (cmp target) deps
 >
 > tagContext :: Monad m => Context m a -> m (Context m a)
-> tagContext c@(preds, n, l@(Label target _ cmp _), sucs) = do
+> tagContext c@(preds, n, l@(Label rule _), sucs) = do
 >     let deps = map fst sucs
->     ood <- outOfDate cmp target (target:deps)
->     let l' = if null ood then l{lTag=Ignore} else l{lTag=Make}
->     return (preds, n, l', sucs)
+>     ood <- outOfDate (isOOD rule) (target rule) (target rule:deps)
+>     return (preds, n, l{lbl_tag=ood}, sucs)
 
 Simplify the graph by dismissing all nodes that are not reachable in
 the dependency graph starting from the given targets. Reduce it
@@ -96,24 +93,25 @@ dependencies.
 > shrink :: Ord a => [a] -> DepGraph m a -> DepGraph m a
 > shrink ts g = G.delNodes (G.nodes (foldr f g ns)) g
 >     where ns = map (fst . G.mkNode_ m) ts
->           m = G.fromGraph (G.nmap lTarget g)
+>           m = G.fromGraph (G.nmap (target . lbl_rule) g)
 >           f n g = case G.match n g of
 >                     (Just c, g') -> foldr f g' (G.suc' c)
 >                     (Nothing, g') -> g'
 >
 > prune :: DepGraph m a -> DepGraph m a
 > prune g = G.delNodes (G.ufold f [] g) g
->     where f c xs = case (lTag . G.lab') c of
->                      Ignore -> G.node' c : xs
->                      Make -> xs
+>     where f c xs = case (lbl_tag . G.lab') c of
+>                      [] -> G.node' c : xs
+>                      _ -> xs
 
 Given a dependency graph take the longest path to each out of date
 dependency and execute recipes in reverse order. Schedule recipes for
-execution at most once. This can be done with a simple topological sort because
-at this stage the graph now contains exactly those nodes that need to be built.
+execution at most once. This can be done with a simple topological
+sort because at this stage the graph now contains exactly those nodes
+that need to be built.
 
 > schedule :: DepGraph m a -> Schedule m
-> schedule = map lRecipe . G.topsort' . G.grev
+> schedule = map (recipe . lbl_rule) . G.topsort' . G.grev
 
 Now to make a set of targets given a set of rules, we build a
 dependency graph for each target. We take the transitive closure of
@@ -150,5 +148,5 @@ name the target they point to.
 >     where isLoop (a, b, _) | a == b = True
 >                            | otherwise = False
 >           f (preds, n, l, sucs) = (map p preds, n, l, map s sucs)
->               where s (_, x) = let l' = lTarget (fromJust (G.lab g x)) in (l', x)
->                     p (_, x) = let l' = lTarget l in (l', x)
+>               where s (_, x) = let l' = target $ lbl_rule $ fromJust $ G.lab g x in (l', x)
+>                     p (_, x) = let l' = target $ lbl_rule l in (l', x)
