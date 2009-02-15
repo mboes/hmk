@@ -15,7 +15,9 @@ notice, here is a blessing:
 A Haskell implementation of the plan9 mk program. This can be used as
 a standalone program or as a library, for convenience.
 
-> module Hmk where
+> module Control.Hmk ( mk
+>                    , Cmp, Rule(..), Task
+>                    , Schedule, Result(..)) where
 >
 > import qualified Data.Graph.Inductive as G
 > import Control.Monad
