@@ -1,0 +1,31 @@
+name:           hmk
+version:        0.5
+author:         Mathieu Boespflug
+maintainer:     Mathieu Boespflug <mboes@tweag.net>
+homepage:       http://code.haskell.org/~mboes/hmk
+synopsis:       A make alternative based on Plan9's mk.
+description:
+        Clone of Plan9's mk command, said to have "improved on make by
+        removing all the vowels from the name".
+
+        The library exports a generic dependency graph traversal that
+        can be used independently of the rest, which is only useful
+        to parse and evaluate mkfile's.
+category:       Distribution
+license:        GPL
+license-file:   COPYING
+copyright:      (c) 2008. Mathieu Boespflug <mboes@tweag.net>
+cabal-version:  >= 1.2.0
+build-type:     Simple
+tested-with:    GHC ==6.10
+
+library
+    build-depends:   base, containers, fgl >= 5.4
+    exposed-modules: Control.Hmk
+
+executable hmk
+    main-is:         Main.lhs
+    other-modules:   Parse, Metarule
+    build-depends:   base, bytestring, containers,
+                     fgl >= 5.4, mtl, parsec >= 3.0.0,
+                     process, unix, filepath >= 1.1
