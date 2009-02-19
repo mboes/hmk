@@ -74,10 +74,10 @@ Hence 'expand' is only interesting for its side-effect on the parse stream.
 >                              setInput (B.append (B.pack val) stream)
 >               Nothing -> return ()
 >           braces = between (char '{') (char '}') $ do
->                      a <- quotableTill (char '%'); char '%'
->                      b <- quotableTill (char '='); char '='
->                      c <- quotableTill (char '%'); char '%'
->                      d <- quotableTill (char '}')
+>                      a <- quotableTill "%"; char '%'
+>                      b <- quotableTill "="; char '='
+>                      c <- quotableTill "%"; char '%'
+>                      d <- quotableTill "}"
 >                      return (error "Unimplemented.") -- xxx
 
 "Special characters may be quoted using single quotes '' as in rc(1)."
@@ -87,12 +87,12 @@ quotes. 'quotableTill' munches characters until a character in the terminal
 set is reached, dealing with quotes as appropriate. In a quoted string a quote
 is written as a pair ''.
 
-> quotableTill :: P Char -> P String
+> quotableTill :: [Char] -> P String
 > quotableTill terminals = any where
 >     any = do stream <- getInput
 >              (expand >> any) <|> quoted <|> unquoted
->     end = (lookAhead terminals >> return []) <|> (eof >> return [])
->     unquoted = return (:) `ap` anyChar `ap` (end <|> any)
+>     end = (lookAhead (oneOf terminals) >> return []) <|> (eof >> return [])
+>     unquoted = return (:) `ap` noneOf terminals `ap` (end <|> any)
 >     quoted = do
 >       char '\''
 >       xs <- manyTill ((string "''" >> return '\'') <|> anyChar)
@@ -104,7 +104,7 @@ Targets and prerequesites are usually filenames. Let's call them entities.
 > p_entity :: P FilePath
 > p_entity = do
 >   many (expand <|> (oneOf " \t" >> return ()))
->   s <- quotableTill (oneOf " \t\n:")
+>   s <- quotableTill " \t\n:"
 >   many (expand <|> (oneOf " \t" >> return ()))
 >   return s
 
