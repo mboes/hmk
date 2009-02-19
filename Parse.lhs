@@ -107,9 +107,9 @@ Targets and prerequesites are usually filenames. Let's call them entities.
 
 > p_entity :: P FilePath
 > p_entity = do
->   many (oneOf " \t")
+>   many (expand <|> (oneOf " \t" >> return ()))
 >   s <- quotableTill (oneOf " \t\n:")
->   many (oneOf " \t")
+>   many (expand <|> (oneOf " \t" >> return ()))
 >   return s
 
 " Assignments and rules are distinguished by the first unquoted occurrence of
