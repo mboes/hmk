@@ -35,7 +35,7 @@ date.
 > type Cmp m a = a -> a -> m Bool
 > data Rule m a = Rule { target :: a
 >                      , prereqs :: [a]
->                      , recipe :: Task m
+>                      , recipe :: [a] -> Task m
 >                      , isOOD :: Cmp m a }
 
 The rules induce a dependency graph. We label each edge with its
@@ -110,8 +110,13 @@ execution at most once. This can be done with a simple topological
 sort because at this stage the graph now contains exactly those nodes
 that need to be built.
 
+At this point we have the remaining necessary information to create a
+task, namely the list of out of date prerequesites. So we pass that
+information to the closure in the rule making a task.
+
 > schedule :: DepGraph m a -> Schedule m
-> schedule = map (recipe . lbl_rule) . G.topsort' . G.grev
+> schedule = map f . G.topsort' . G.grev where
+>     f l = recipe (lbl_rule l) (lbl_tag l)
 
 Now to make a set of targets given a set of rules, we build a
 dependency graph for each target. We take the transitive closure of

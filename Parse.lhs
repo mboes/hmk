@@ -71,8 +71,6 @@ Hence 'expand' is only interesting for its side-effect on the parse stream.
 >             mbval <- liftIO $ getEnv var
 >             case mbval of
 >               Just val -> do stream <- getInput
->                              liftIO $ putStrLn "expand"
->                              liftIO $ B.putStrLn (B.append (B.pack val) stream)
 >                              setInput (B.append (B.pack val) stream)
 >               Nothing -> return ()
 >           braces = between (char '{') (char '}') $ do
@@ -92,8 +90,6 @@ is written as a pair ''.
 > quotableTill :: P Char -> P String
 > quotableTill terminals = any where
 >     any = do stream <- getInput
->              liftIO $ putStrLn "quotableTill"
->              liftIO $ B.putStrLn stream
 >              (expand >> any) <|> quoted <|> unquoted
 >     end = (lookAhead terminals >> return []) <|> (eof >> return [])
 >     unquoted = return (:) `ap` anyChar `ap` (end <|> any)
