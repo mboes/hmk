@@ -27,10 +27,10 @@ The exit code of the command is the exit code of the last recipe executed.
 >
 > main :: IO ()
 > main = do
->   (mkfile:targets) <- getArgs
->   rules <- B.readFile mkfile
+>   targets <- getArgs
+>   rules <- B.readFile "mkfile"
 >            >>= return . preprocess
->            >>= parse mkfile
+>            >>= parse "mkfile"
 >            >>= return . postprocess
 >   guard (not . null) "No rules in mkfile." rules
 
