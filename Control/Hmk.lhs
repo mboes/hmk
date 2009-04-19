@@ -17,14 +17,13 @@ a standalone program or as a library, for convenience.
 
 > module Control.Hmk ( mk
 >                    , Cmp, Rule(..), Task
->                    , Schedule, Result(..)) where
+>                    , Schedule, Result(..) ) where
 >
-> import qualified Data.Graph.Inductive as G
-> import Control.Monad
-> import Data.List (nub, zipWith3)
-> import Data.Maybe (fromJust)
-> import qualified Data.Map as Map
-
+> import Control.Applicative
+> import Control.Monad.State
+> import Control.Monad.Reader
+> import Data.List (find)
+> import Data.Maybe (catMaybes)
 
 Hmk manages dependencies between entities. These dependencies are
 specified by means of rules, establishing a dependency between the
@@ -35,74 +34,80 @@ date.
 > type Cmp m a = a -> a -> m Bool
 > data Rule m a = Rule { target :: a
 >                      , prereqs :: [a]
->                      , recipe :: [a] -> Task m
+>                      , recipe :: Maybe ([a] -> Task m)
 >                      , isOOD :: Cmp m a }
-
-The rules induce a dependency graph. We label each edge with its
-destination for convenience.
-
-> type DepGraph m a = G.Gr (Label m a) a
-> type Context m a = G.Context (Label m a) a
-
-where labels are represented as follows. We use tags to mark out of
-date nodes. Currently we tag each node with the list of out of date
-prerequesites.
-
-> data Label m a = Label { lbl_rule :: Rule m a
->                        , lbl_tag :: [a] }
 >
-> instance Show a => Show (Label m a) where
->     show (Label r _) = show (target r)
+> instance Show a => Show (Rule m a) where
+>     show rule = "Rule " ++ show (target rule) ++ " " ++ show (prereqs rule)
 
-The dependency graph is used to determine a set of tasks to accomplish
-and the order in which these tasks should be done.
+The rules induce a dependency graph. It is from this dependency graph
+that we will compute a schedule, ie a list of tasks.
 
+> type DepGraph m a = [Tree m a]
+> data Tree m a = Node a (DepGraph m a) (Rule m a)
+>                 deriving Show
+>
+> data Result = TaskSuccess | TaskFailure
 > type Task m = m Result
 > type Schedule m = [Task m]
-> data Result = TaskSuccess | TaskFailure
 
-We can now define a few utility functions:
+Here's how we construct one, with the given set of targets as the
+roots of the DAG. The dependency graph is represented as a forest.
+This is the natural representation in a functional language. We could
+of course use adjacency lists or matrices, but that would only
+complicate the code for essentially no gain, and perhaps even a
+performance hit.
 
-> mkDepGraph :: Ord a => [Rule m a] -> DepGraph m a
-> mkDepGraph rs =
->     let es = nub $ concatMap edges rs
->         vs = nub $ concatMap vertices rs
->     in G.gmap mkLabel (G.run_ G.empty (G.insMapNodesM vs >> G.insMapEdgesM es))
->     where edges r@(Rule{target=t,prereqs=ps}) = zipWith3 (,,) (repeat t) ps ps
->           vertices (Rule{target=t,prereqs=ps}) = t : ps
->           labels = Map.fromList $
->                    map (\r -> (target r, Label r undefined)) rs
->           mkLabel (preds, n, t, sucs) = (preds, n, labels Map.! t, sucs)
+One could consider the forest constructed hither as the reification of
+control induced by the graph structure. One could argue that a tree is
+wasteful but it is always possible to build it with sharing of
+subtrees, even if the sharing cannot be observed. But we dispense with
+this sophistication, trusting instead that the garbage collector will
+work hard enough that only the current path down the tree is in memory
+while traversing it.
 
-Return the list of dependencies wrt whom target is out of date.
+Invariant 1: The targets in each rule should not appear as targets in
+any other rules.
 
-> outOfDate :: Monad m => Cmp m a -> a -> [a] -> m [a]
-> outOfDate cmp target deps = filterM (cmp target) deps
->
-> tagContext :: Monad m => Context m a -> m (Context m a)
-> tagContext c@(preds, n, l@(Label rule _), sucs) = do
->     let deps = map fst sucs
->     ood <- outOfDate (isOOD rule) (target rule) (target rule:deps)
->     return (preds, n, l{lbl_tag=ood}, sucs)
+Invariant 2: The induced graph must be acyclic.
 
-Simplify the graph by dismissing all nodes that are not reachable in
-the dependency graph starting from the given targets. Reduce it
-further by pruning those nodes that are up to date wrt their
-dependencies.
+Invariant 2: every prerequisite should be the target of some rule.
 
-> shrink :: Ord a => [a] -> DepGraph m a -> DepGraph m a
-> shrink ts g = G.delNodes (G.nodes (foldr f g ns)) g
->     where ns = map (fst . G.mkNode_ m) ts
->           m = G.fromGraph (G.nmap (target . lbl_rule) g)
->           f n g = case G.match n g of
->                     (Just c, g') -> foldr f g' (G.suc' c)
->                     (Nothing, g') -> g'
->
-> prune :: DepGraph m a -> DepGraph m a
-> prune g = G.delNodes (G.ufold f [] g) g
->     where f c xs = case (lbl_tag . G.lab') c of
->                      [] -> G.node' c : xs
->                      _ -> xs
+> depgraph :: Eq a => [Rule m a] -> [a] -> DepGraph m a
+> depgraph rules targets = runReader (mapM aux targets) [] where
+>     aux x = do
+>       visited <- ask
+>       case lookup x visited of
+>         Just n -> error "Cycle detected."
+>         Nothing ->
+>             case find (\r -> target r == x) rules of
+>                 Just rule -> mdo
+>                   let n = Node x ps rule
+>                   ps <- local ((x, n):) $ mapM aux (prereqs rule)
+>                   return n
+>                 Nothing -> error "Invariant 3 violated."
+
+From the mk(1) manual:
+
+"A target is considered up to date if it has no prerequisites or if
+all its prerequisites are up to date and it is newer than all its
+prerequisites. Once the recipe for a target has executed, the target
+is considered up to date."
+
+So let's remove all those targets that are up to date. We detect
+targets that do not exist by comparing them with themselves with the
+isOOD function of the rule.
+
+> prune :: (Applicative m, Monad m) => DepGraph m a -> m (DepGraph m a)
+> prune = foldM aux [] where
+>     aux gr (Node x ps rule) = do
+>       ps' <- prune ps
+>       if null ps' then
+>          do ood <- or <$> mapM (isOOD rule x) (x : prereqs rule)
+>             if ood then
+>                return $ Node x ps' rule : gr else
+>                return gr
+>          else return $ Node x ps' rule : gr
 
 Given a dependency graph take the longest path to each out of date
 dependency and execute recipes in reverse order. Schedule recipes for
@@ -110,48 +115,24 @@ execution at most once. This can be done with a simple topological
 sort because at this stage the graph now contains exactly those nodes
 that need to be built.
 
-At this point we have the remaining necessary information to create a
-task, namely the list of out of date prerequesites. So we pass that
-information to the closure in the rule making a task.
+> schedule :: Eq a => DepGraph m a -> Schedule m
+> schedule gr = reverse $ evalState (foldM aux [] gr) [] where
+>     aux result (Node x ps rule) = do
+>       visited <- get
+>       if x `elem` visited then
+>          return result else
+>          do put (x:visited)
+>             tasks <- foldM aux result ps
+>             return $ maybe tasks ((:tasks) . ($ prereqs rule)) (recipe rule)
 
-> schedule :: DepGraph m a -> Schedule m
-> schedule = map f . G.topsort' . G.grev where
->     f l = recipe (lbl_rule l) (lbl_tag l)
+Let's piece everything together.
 
-Now to make a set of targets given a set of rules, we build a
-dependency graph for each target. We take the transitive closure of
-each graph and prune away those nodes that are up to date. From this a
-schedule of tasks can be derived.
+> mk :: (Eq a, Applicative m, Monad m) => [Rule m a] -> [a] -> m (Schedule m)
+> mk rules targets = schedule <$> (prune $ depgraph rules targets)
 
-> mk :: (Monad m, Ord a) => [Rule m a] -> [a] -> m (Schedule m)
-> mk rs ts =
->     return rs
->     >>= (**) mkDepGraph
->     >>= (**) trc'
->     >>= guard G.isSimple errCyclic
->     >>= (**) (shrink ts)
->     >>= gmapM tagContext
->     >>= (**) prune
->     >>= guard (not . isAmbiguous) errAmb
->     >>= (**) schedule
->   where (**) = (.) return
->         guard p s x = if p x then return x else fail s
->         errCyclic = "There are cycles in the dependency graph."
->         errAmb = "There is more than one way to build the targets."
->         isAmbiguous _ = False -- xxx
+** Tests **
 
-> gmapM :: (G.DynGraph gr, Monad m) =>
->          (G.Context a b -> m (G.Context c d)) -> gr a b -> m (gr c d)
-> gmapM f = G.ufold (\c g -> return (G.&) `ap` (f c) `ap` g) (return G.empty)
-
-Wrapper function to remove loops that were induced by transitive
-closure calculation and reestablish the invariant that edge labels
-name the target they point to.
-
-> trc' :: DepGraph m a -> DepGraph m a
-> trc' g = G.gmap f $ G.efilter (not . isLoop) $ G.trc g
->     where isLoop (a, b, _) | a == b = True
->                            | otherwise = False
->           f (preds, n, l, sucs) = (map p preds, n, l, map s sucs)
->               where s (_, x) = let l' = target $ lbl_rule $ fromJust $ G.lab g x in (l', x)
->                     p (_, x) = let l' = target $ lbl_rule l in (l', x)
+> rl x ps = Rule x ps (Just (\_ -> putStrLn (show x) >> return TaskSuccess))
+>           (\_ _ -> return True)
+> t1 = [rl 1 [2,3], rl 2 [4], rl 3 [4], rl 4 []]
+> t2 = [rl 1 [2,3], rl 2 [4], rl 3 [4], rl 4 [6,5], rl 5 [], rl 6 [5]]
