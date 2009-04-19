@@ -35,7 +35,7 @@ date.
 > data Rule m a = Rule { target :: a
 >                      , prereqs :: [a]
 >                      , recipe :: Maybe ([a] -> Task m)
->                      , isOOD :: Cmp m a }
+>                      , isStale :: Cmp m a }
 >
 > instance Show a => Show (Rule m a) where
 >     show rule = "Rule " ++ show (target rule) ++ " " ++ show (prereqs rule)
@@ -96,14 +96,14 @@ is considered up to date."
 
 So let's remove all those targets that are up to date. We detect
 targets that do not exist by comparing them with themselves with the
-isOOD function of the rule.
+isStale function of the rule.
 
 > prune :: (Applicative m, Monad m) => DepGraph m a -> m (DepGraph m a)
 > prune = foldM aux [] where
 >     aux gr (Node x ps rule) = do
 >       ps' <- prune ps
 >       if null ps' then
->          do ood <- or <$> mapM (isOOD rule x) (x : prereqs rule)
+>          do ood <- or <$> mapM (isStale rule x) (x : prereqs rule)
 >             if ood then
 >                return $ Node x ps' rule : gr else
 >                return gr
