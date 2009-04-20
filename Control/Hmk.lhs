@@ -24,6 +24,7 @@ a standalone program or as a library, for convenience.
 > import Control.Monad.Reader
 > import Data.List (find)
 > import Data.Maybe (catMaybes)
+> import qualified Data.Set as Set
 
 Hmk manages dependencies between entities. These dependencies are
 specified by means of rules, establishing a dependency between the
@@ -73,19 +74,18 @@ Invariant 2: The induced graph must be acyclic.
 
 Invariant 2: every prerequisite should be the target of some rule.
 
-> depgraph :: Eq a => [Rule m a] -> [a] -> DepGraph m a
-> depgraph rules targets = runReader (mapM aux targets) [] where
+> depgraph :: Ord a => [Rule m a] -> [a] -> DepGraph m a
+> depgraph rules targets = runReader (mapM aux targets) Set.empty where
 >     aux x = do
 >       visited <- ask
->       case lookup x visited of
->         Just n -> error "Cycle detected."
->         Nothing ->
->             case find (\r -> target r == x) rules of
->                 Just rule -> mdo
->                   let n = Node x ps rule
->                   ps <- local ((x, n):) $ mapM aux (prereqs rule)
->                   return n
->                 Nothing -> error "Invariant 3 violated."
+>       if x `Set.member` visited then
+>          error "Cycle detected." else
+>           case find (\r -> target r == x) rules of
+>             Just rule -> mdo
+>               let n = Node x ps rule
+>               ps <- local (Set.insert x) $ mapM aux (prereqs rule)
+>               return n
+>             Nothing -> error "Invariant 3 violated."
 
 From the mk(1) manual:
 
@@ -115,19 +115,19 @@ execution at most once. This can be done with a simple topological
 sort because at this stage the graph now contains exactly those nodes
 that need to be built.
 
-> schedule :: Eq a => DepGraph m a -> Schedule m
-> schedule gr = reverse $ evalState (foldM aux [] gr) [] where
+> schedule :: Ord a => DepGraph m a -> Schedule m
+> schedule gr = reverse $ evalState (foldM aux [] gr) Set.empty where
 >     aux result (Node x ps rule) = do
 >       visited <- get
->       if x `elem` visited then
+>       if x `Set.member` visited then
 >          return result else
->          do put (x:visited)
+>          do put (Set.insert x visited)
 >             tasks <- foldM aux result ps
 >             return $ maybe tasks ((:tasks) . ($ prereqs rule)) (recipe rule)
 
 Let's piece everything together.
 
-> mk :: (Eq a, Applicative m, Monad m) => [Rule m a] -> [a] -> m (Schedule m)
+> mk :: (Ord a, Applicative m, Monad m) => [Rule m a] -> [a] -> m (Schedule m)
 > mk rules targets = schedule <$> (prune $ depgraph rules targets)
 
 ** Tests **
