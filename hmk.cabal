@@ -11,6 +11,8 @@ description:
         The library exports a generic dependency graph traversal that
         can be used independently of the rest.
 
+        The documentation is embedded in the literate Haskell source.
+
         /Note:/ the library is released to the /public domain/. Those
         source files that are not part of the library are released
         under GPLv3 or later.
