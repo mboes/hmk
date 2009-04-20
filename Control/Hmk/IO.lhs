@@ -19,7 +19,7 @@ using user-defined comparison functions in the IO monad.
 This module should be imported qualified.
 
 > module Control.Hmk.IO (isStale) where
-> import Control.Hmk
+> import Control.Hmk hiding (isStale)
 > import System.FilePath
 > import System.Posix.Files
 
