@@ -18,10 +18,11 @@ using user-defined comparison functions in the IO monad.
 
 This module should be imported qualified.
 
-> module Control.Hmk.IO (isStale) where
+> module Control.Hmk.IO where
 > import Control.Hmk hiding (isStale)
 > import System.FilePath
 > import System.Posix.Files
+> import System.Exit
 
 Staleness check.
 
@@ -36,3 +37,9 @@ Staleness check.
 >          let xtime = modificationTime xstat
 >              ytime = modificationTime ystat
 >          return (xtime > ytime)
+
+Project exit code to task result.
+
+> testExitCode :: ExitCode -> IO Result
+> testExitCode ExitSuccess = return TaskSuccess
+> testExitCode (ExitFailure _) = return TaskFailure
