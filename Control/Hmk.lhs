@@ -15,10 +15,12 @@ notice, here is a blessing:
 A Haskell implementation of the plan9 mk program. This can be used as
 a standalone program or as a library, for convenience.
 
-> module Control.Hmk ( mk
+> module Control.Hmk ( module Control.Hmk.Analyze
+>                    , mk
 >                    , Cmp, Rule(..), Task
 >                    , Schedule, Result(..) ) where
 >
+> import Control.Hmk.Analyze
 > import Control.Applicative
 > import Control.Monad.State
 > import Control.Monad.Reader

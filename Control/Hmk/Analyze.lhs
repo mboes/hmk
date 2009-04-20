@@ -15,7 +15,7 @@ notice, here is a blessing:
 Rule coalescing, rule completion and ambiguity checking.
 
 > module Control.Hmk.Analyze (coalesce, complete, process) where
-> import Control.Hmk
+> import {-# SOURCE #-} Control.Hmk
 > import Data.List (sortBy)
 > import Data.Maybe (isNothing)
 > import qualified Data.Set as Set

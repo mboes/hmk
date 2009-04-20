@@ -1,0 +1,9 @@
+> module Control.Hmk where
+>
+> type Cmp m a = a -> a -> m Bool
+> data Result = TaskSuccess | TaskFailure
+> type Task m = m Result
+> data Rule m a = Rule { target :: a
+>                      , prereqs :: [a]
+>                      , recipe :: Maybe ([a] -> Task m)
+>                      , isStale :: Cmp m a }
