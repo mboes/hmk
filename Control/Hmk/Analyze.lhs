@@ -47,6 +47,7 @@ second rule overrides the first."
 >               | target r == target r' =
 >                   error "Ambiguous rules."
 >               | otherwise = r : aux rs
+>           aux rs = rs
 >           cmp x y = case compare (target x) (target y) of
 >                       EQ -> maybe LT (const GT) (recipe x)
 >                       x -> x
