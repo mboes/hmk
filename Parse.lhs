@@ -144,7 +144,7 @@ Parsing of the quotes and so forth will be done at expansion time.
 >   prereqs <- many p_entity
 >   newline
 >   recipe <- p_recipe
->   return $ Rule target prereqs (\_ -> recipe) defaultCmp
+>   return $ Rule target prereqs (Just (\_ -> recipe)) defaultCmp
 >
 > defaultCmp _ _ = return True -- xxx
 >
