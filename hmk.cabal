@@ -27,7 +27,7 @@ tested-with:    GHC ==6.10
 library
     build-depends:   base, containers
     extensions:	     RecursiveDo, PatternGuards
-    exposed-modules: Control.Hmk,
+    exposed-modules: Control.Hmk
                      Control.Hmk.Analyze
                      Control.Hmk.IO
 
