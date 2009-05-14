@@ -74,7 +74,7 @@ any other rules.
 
 Invariant 2: The induced graph must be acyclic.
 
-Invariant 2: every prerequisite should be the target of some rule.
+Invariant 3: every prerequisite should be the target of some rule.
 
 > depgraph :: Ord a => [Rule m a] -> [a] -> DepGraph m a
 > depgraph rules targets = runReader (mapM aux targets) Set.empty where
