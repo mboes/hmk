@@ -54,10 +54,9 @@ are evaluated to Rule's, the data structure for rules used by Control.Hmk.
 
 > type Stem = String
 >
-> eval :: FilePath              -- ^ File name, for error reporting.
->      -> Mkfile                -- ^ Result of the parser.
+> eval :: Mkfile                -- ^ Result of the parser.
 >      -> IO (Seq (Stem -> Rule IO FilePath))
-> eval fp (rules, assigns) = do
+> eval (rules, assigns) = do
 >   Seq.mapM_ evalAssignment assigns
 >   Seq.msum <$> Seq.mapM evalRule rules
 >     where evalRule (PRule pt pps pr pcmp) = do
