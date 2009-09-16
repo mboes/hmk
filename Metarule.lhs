@@ -36,10 +36,10 @@ matching rules.
 > seqCatMaybes :: Seq (Maybe a) -> Seq a
 > seqCatMaybes = Seq.foldr (\x xs -> maybe xs (Seq.<| xs) x) Seq.empty
 >
-> instantiate :: Seq (Stem -> Rule IO FilePath)
->             -> Seq FilePath   -- ^ Targets.
+> instantiate :: Seq FilePath   -- ^ Targets.
+>             -> Seq (Stem -> Rule IO FilePath)
 >             -> Seq (Rule IO FilePath)
-> instantiate closures targets = join $ fmap f closures where
+> instantiate targets closures = join $ fmap f closures where
 >     f clo = let schema = target (clo undefined)
 >                 stems = collectMatches schema targets
 >             in fmap (\stem -> expand stem (clo stem)) stems
@@ -55,14 +55,14 @@ matching rules.
 >     subst stem ('%':suffix) = stem ++ suffix
 >     subst stem x = x
 >
-> instantiateRecurse :: Seq (Stem -> Rule IO FilePath)
->                    -> Seq FilePath
+> instantiateRecurse :: Seq FilePath
+>                    -> Seq (Stem -> Rule IO FilePath)
 >                    -> Seq (Rule IO FilePath)
-> instantiateRecurse closures targets = evalState (go targets) Set.empty where
+> instantiateRecurse targets closures = evalState (go targets) Set.empty where
 >     go targets | Seq.null targets = return Seq.empty
 >                | otherwise = do
 >       seen <- get
->       let rules = instantiate closures targets
+>       let rules = instantiate targets closures
 >           ts = (Set.\\ seen) $ Set.unions $ Seq.toList $
 >                fmap (Set.fromList . prereqs) rules
 >       put (seen `Set.union` ts)
