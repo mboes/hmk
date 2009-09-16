@@ -27,9 +27,12 @@ also the parser's job to carry forward any variable substitutions.
 
 > import Control.Hmk
 > import Parse
-> import Data.ByteString.Lazy.Char8 (ByteString)
-> import qualified Data.ByteString.Lazy.Char8 as B
-> import Control.Monad (liftM)
+> import Eval
+> import Metarule
+> import Control.Monad
+> import Control.Arrow
+> import qualified Data.Sequence as Seq
+> import qualified Data.Foldable as Seq
 
 The exit code of the command is the exit code of the last recipe executed.
 
@@ -38,16 +41,14 @@ The exit code of the command is the exit code of the last recipe executed.
 > import System.Environment
 >
 >
-> guard p s x = if p x then return x else fail s
->
 > main :: IO ()
 > main = do
 >   targets <- getArgs
->   rules <- B.readFile "mkfile"
->            >>= return . preprocess
->            >>= parse "mkfile"
->            >>= return . postprocess
->   guard (not . null) "No rules in mkfile." rules
+>   rules <- readFile "mkfile"
+>            >>= return . parse "mkfile"
+>            >>= eval
+>            >>= return . Seq.toList . instantiateRecurse (Seq.fromList targets)
+>   when (null rules) (fail "No rules in mkfile.")
 
 Per the mk man page, if no targets are specified on the command line, then
 assume the target is that of the first rule.
