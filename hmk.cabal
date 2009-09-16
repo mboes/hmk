@@ -33,8 +33,9 @@ library
 
 executable hmk
     main-is:         Main.lhs
-    other-modules:   Parse, Metarule
-    extensions:	     RecursiveDo, PatternGuards
+    other-modules:   Parse, Eval, Metarule
+    extensions:	     RecursiveDo, PatternGuards, NamedFieldPuns
     build-depends:   base, bytestring, containers,
-                     mtl, parsec >= 3.0.0,
-                     process, unix, filepath >= 1.1
+                     process, unix, filepath >= 1.1,
+                     mtl, parsec >= 3.0.0, pcre-light >= 0.3
+                     
