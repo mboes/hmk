@@ -36,7 +36,7 @@ Staleness check.
 >          ystat <- getFileStatus y
 >          let xtime = modificationTime xstat
 >              ytime = modificationTime ystat
->          return (xtime > ytime)
+>          return (xtime < ytime)
 
 Project exit code to task result.
 
