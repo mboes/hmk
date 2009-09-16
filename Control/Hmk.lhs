@@ -25,7 +25,6 @@ a standalone program or as a library, for convenience.
 > import Control.Monad.State
 > import Control.Monad.Reader
 > import Data.List (find)
-> import Data.Maybe (catMaybes)
 > import qualified Data.Set as Set
 
 Hmk manages dependencies between entities. These dependencies are
