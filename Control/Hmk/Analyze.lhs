@@ -56,7 +56,10 @@ For simplicity, we assume as invariant that for all prerequisites p in
 every rule there exists a rule whose target is p. 'complete' adds new
 rules if necessary to achieve this invariant.
 
-> complete :: (Ord a, Show a) => Cmp m a -> [Rule m a] -> [Rule m a]
+> complete :: (Ord a, Show a) =>
+>             Cmp m a    -- ^ The default comparison operation.
+>          -> [Rule m a]
+>          -> [Rule m a]
 > complete cmp rules = let targets = Set.fromList (map target rules)
 >                          prereqss = Set.unions $
 >                                     map (Set.fromList . prereqs) rules
