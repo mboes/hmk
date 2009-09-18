@@ -51,7 +51,10 @@ to the outside world, such as the system environment.
 
 Evaluation substitutes values for all variable references, using the system
 environment as a variable store. Assignments are executed first, then PRule's
-are evaluated to Rule's, the data structure for rules used by Control.Hmk.
+are evaluated to Rule's, the data structure for rules used by Control.Hmk. The
+return value is a sequence of functions mapping stems to rules. This is
+because stems are synthesized as a by-product of meta-rule instantiaton, but
+this instantiation is performed post evaluation.
 
 > type Stem = String
 >
