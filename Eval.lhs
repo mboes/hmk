@@ -27,9 +27,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import Control.Monad.State
 > import Data.List (intercalate)
 >
+> import System.IO
+> import System.Process
 > import System.Posix.Env
 > import System.Posix.Process (getProcessID)
-> import System.Cmd (system)
 
 
 Variable references are substituted for their values, using the environment.
@@ -82,6 +83,10 @@ are evaluated to Rule's, the data structure for rules used by Control.Hmk.
 >             setEnv "nproc" (show 0) True
 >             setEnv "pid" pid True
 >             setEnv "prereq" (freeze prereq) True
->             setEnv "stem" stem True -- xxx
+>             setEnv "stem" stem True
 >             setEnv "target" target True
->             system text >>= IO.testExitCode
+>             (Just inh, _, _, ph) <-
+>                         createProcess (proc "/bin/sh" ["-e"]) { std_in = CreatePipe }
+>             hSetBinaryMode inh False
+>             hPutStr inh text
+>             waitForProcess ph >>= IO.testExitCode
