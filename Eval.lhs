@@ -93,3 +93,8 @@ this instantiation is performed post evaluation.
 >             hSetBinaryMode inh False
 >             hPutStr inh text
 >             waitForProcess ph >>= IO.testExitCode
+
+Version of eval where stems are instantiated to the empty string.
+
+> evalNoMeta :: Mkfile -> IO (Seq (Rule IO FilePath))
+> evalNoMeta mkfile = fmap ($ "") <$> eval mkfile
