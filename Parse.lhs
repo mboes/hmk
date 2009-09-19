@@ -13,8 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-> module Parse ( PRule(..), Assignment(..), Token(..), Mkfile
->               , parse ) where
+> module Parse ( Token(..), Mkfile(..), parse ) where
 
 Parse mkfile's to a set of rules. The following quoted comments in this source
 file are all excerpts from the man page for plan9's mk command, so are
@@ -42,15 +41,14 @@ contain references and literals, so a reference name is a sequence of tokens.
 >            | Ref (Seq Token)
 >              deriving Show
 >
-> data PRule = PRule (Seq Token) (Seq Token) (Maybe String) (Maybe String)
->              deriving Show
->
 > data AssignAttr = Export | Local
 >                   deriving Show
-> data Assignment = Assign AssignAttr String (Seq Token)
->                   deriving Show
 >
-> type Mkfile = (Seq PRule, Seq Assignment)
+> data Mkfile = Mkrule (Seq Token) (Seq Token) (Maybe String) (Maybe String) Mkfile
+>             | Mkassign AssignAttr String (Seq Token) Mkfile
+>             | Mkinsert Token Mkfile -- lines beginning with '<'
+>             | Mkinpipe Token Mkfile -- lines beginning with '<|'
+>             | Mkeof
 
 Parsing produces unevaluated rules, represented by the PRule type. Evaluation
 takes values of this type as input to produce values of type Rule used in
@@ -59,7 +57,7 @@ be executed during evaluation.
 
 > parse :: FilePath -> String -> Mkfile
 > parse fp input =
->     case runParser ((,) <$> p_toplevel <*> getState) Seq.empty fp input of
+>     case runParser p_toplevel () fp input of
 >         Left e -> error (show e)
 >         Right x -> x
 
@@ -111,22 +109,17 @@ Munch all whitespace on a line.
 
 > p_toplevel = do
 >   many newline
->   many p_assignment
->   ((Seq.<|) <$> p_rule <*> p_toplevel) <|> (eof >> return Seq.empty)
+>   p_assignment <|> p_rule <|> p_insert <|> p_inpipe <|> (Mkeof <$ eof)
 
 " Assignments and rules are distinguished by the first unquoted occurrence of
 : (rule) or = (assignment)."
-
-The assignment parser is a side-effecting parser that accumulates assignments
-into the parser state. It returns unit.
 
 > p_assignment = try $ do
 >   var <- quotableTill " \t="
 >   char '='
 >   value <- sepBy token whitespace
 >   newline
->   assigns <- getState
->   putState $ assigns Seq.|> Assign Export var (Seq.fromList value)
+>   Mkassign Export var (Seq.fromList value) <$> p_toplevel
 >
 > p_rule = do
 >   targets <- Seq.fromList <$> many1 token
@@ -136,10 +129,14 @@ into the parser state. It returns unit.
 >   prereqs <- Seq.fromList <$> sepBy token whitespace
 >   newline
 >   recipe <- p_recipe
->   return $ PRule targets prereqs recipe Nothing
+>   Mkrule targets prereqs recipe Nothing <$> p_toplevel
 >
 > p_recipe = do
 >   lines <- collect
 >   if null lines then return Nothing else return $ Just $ intercalate "\n" lines
 >     where collect = (do indentation; (:) <$> (many (noneOf "\n") <* newline) <*> collect)
 >                     <|> return []
+>
+> p_insert = undefined
+>
+> p_inpipe = undefined

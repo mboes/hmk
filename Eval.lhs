@@ -58,41 +58,54 @@ this instantiation is performed post evaluation.
 
 > type Stem = String
 >
-> eval :: Mkfile                -- ^ Result of the parser.
->      -> IO (Seq (Stem -> Rule IO FilePath))
-> eval (rules, assigns) = do
->   Seq.mapM_ evalAssignment assigns
->   Seq.msum <$> Seq.mapM evalRule rules
->     where evalRule (PRule pt pps pr pcmp) = do
->                          ts <- Seq.mapM evalToken pt
->                          ps <- Seq.mapM evalToken pps
->                          -- xxx support user supplied compare.
->                          let f t stem = let r = fmap (evalRecipe ts t ps stem) pr
->                                         in Rule t (Seq.toList ps) r IO.isStale
->                          return $ fmap f ts
->           evalAssignment (Assign attr var value) = do
->                          -- xxx take into account attributes.
->                          lits <- Seq.mapM evalToken value
->                          setEnv var (freeze lits) True
->           evalToken (Ref toks) = do
->                          var <- Seq.mapM evalToken toks
->                          maybe "" id <$> getEnv (freeze var)
->           evalToken (Lit x) = return x
->           evalRecipe alltarget target prereq stem text newprereq = do
->             pid <- show <$> getProcessID
->             setEnv "alltarget" (freeze alltarget) True
->             setEnv "newprereq" (intercalate " " newprereq) True
->             setEnv "newmember" "" True -- xxx aggregates not supported.
->             setEnv "nproc" (show 0) True
->             setEnv "pid" pid True
->             setEnv "prereq" (freeze prereq) True
->             setEnv "stem" stem True
->             setEnv "target" target True
->             (Just inh, _, _, ph) <-
->                         createProcess (proc "/bin/sh" ["-e"]) { std_in = CreatePipe }
->             hSetBinaryMode inh False
->             hPutStr inh text
->             waitForProcess ph >>= IO.testExitCode
+> evalToken (Ref toks) = do
+>                var <- Seq.mapM evalToken toks
+>                maybe "" id <$> getEnv (freeze var)
+> evalToken (Lit x) = return x
+
+A recipe is executed by supplying the recipe as standard input to the shell.
+(Note that unlike make, hmk feeds the entire recipe to the shell rather than
+running each line of the recipe separately.)
+
+> evalRecipe alltarget target prereq stem text newprereq = do
+>   pid <- show <$> getProcessID
+>   setEnv "alltarget" (freeze alltarget) True
+>   setEnv "newprereq" (intercalate " " newprereq) True
+>   setEnv "newmember" "" True -- xxx aggregates not supported.
+>   setEnv "nproc" (show 0) True
+>   setEnv "pid" pid True
+>   setEnv "prereq" (freeze prereq) True
+>   setEnv "stem" stem True
+>   setEnv "target" target True
+>   (Just inh, _, _, ph) <- createProcess (proc "/bin/sh" ["-e"])
+>                           { std_in = CreatePipe }
+>   hSetBinaryMode inh False
+>   hPutStr inh text
+>   waitForProcess ph >>= IO.testExitCode
+>
+> eval :: Mkfile -> IO (Seq (Stem -> Rule IO FilePath))
+> eval (Mkrule ts ps r flags cont) = do
+>   tsv <- Seq.mapM evalToken ts
+>   psv <- Seq.mapM evalToken ps
+>   -- xxx support user supplied compare.
+>   let f t stem = let rv = fmap (evalRecipe tsv t psv stem) r
+>                  in Rule t (Seq.toList psv) rv IO.isStale
+>   (Seq.><) <$> pure (fmap f tsv) <*> eval cont
+> eval (Mkassign attr var val cont) = do
+>   -- xxx take into account attributes.
+>   lits <- Seq.mapM evalToken val
+>   setEnv var (freeze lits) True
+>   eval cont
+> eval (Mkinsert file cont) = do
+>   filev <- evalToken file
+>   (Seq.><) <$> (eval =<< parse filev <$> readFile filev) <*> eval cont
+> eval (Mkinpipe file cont) = do
+>   filev <- evalToken file
+>   (_, Just outh, _, ph) <- createProcess (proc filev []) { std_out = CreatePipe }
+>   result <- hGetContents outh
+>   waitForProcess ph
+>   (Seq.><) <$> eval (parse "<pipe>" result) <*> eval cont
+> eval Mkeof = return Seq.empty
 
 Version of eval where stems are instantiated to the empty string.
 
