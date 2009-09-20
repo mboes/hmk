@@ -23,6 +23,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import qualified Data.Sequence as Seq
 > import qualified Data.Traversable as Seq
 > import qualified Data.Foldable as Seq
+> import qualified Data.Map as Map
+> import qualified Data.Foldable as Map
 > import Control.Applicative
 > import Control.Monad.State
 > import Data.List (intercalate)
@@ -32,6 +34,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import System.Posix.Env
 > import System.Posix.Process (getProcessID)
 
+
+> instance Monad m => Applicative (StateT s m) where
+>     pure = return
+>     (<*>) = ap
 
 Variable references are substituted for their values, using the environment.
 
@@ -58,10 +64,52 @@ this instantiation is performed post evaluation.
 
 > type Stem = String
 >
-> evalToken (Ref toks) = do
->                var <- Seq.mapM evalToken toks
->                maybe "" id <$> getEnv (freeze var)
-> evalToken (Lit x) = return x
+> addVariable var val = modify (Map.insert var (val :: Seq String))
+> lookupVariable var = Map.findWithDefault (Seq.empty) var <$> get
+>
+> evalToken (Lit x) = return (Seq.singleton x)
+> evalToken (Coll toks) = Seq.singleton <$> Seq.concat <$>
+>                         Seq.mapM ((f <$>) . evalToken) toks
+>     where f ls | Seq.length ls == 1 = Seq.index ls 0
+>                | otherwise = error "Cannot collate lists."
+> evalToken (Ref tok) = do
+>                var <- evalToken tok
+>                lookupVariable (freeze var)
+>
+> eval :: Mkfile -> IO (Seq (Stem -> Rule IO FilePath))
+> eval mkfile = do
+>   (rules, tbl) <- runStateT (eval' mkfile) Map.empty
+>   export tbl
+>   return rules
+>     where -- export mkfile variable env to system environment.
+>           export = Map.sequence_ . Map.mapWithKey (\k x -> setEnv k (freeze x) True)
+>
+> eval' (Mkrule ts ps r flags cont) = do
+>   tsv <- Seq.msum <$> Seq.mapM evalToken ts
+>   psv <- Seq.msum <$> Seq.mapM evalToken ps
+>   -- xxx support user supplied compare.
+>   let f t stem = let rv = fmap (evalRecipe tsv t psv stem) r
+>                  in Rule t (Seq.toList psv) rv IO.isStale
+>   (Seq.><) <$> pure (fmap f tsv) <*> eval' cont
+> eval' (Mkassign attr var val cont) = do
+>   -- xxx take into account attributes.
+>   lits <- Seq.msum <$> Seq.mapM evalToken val
+>   addVariable var lits
+>   eval' cont
+> eval' (Mkinsert file cont) = do
+>   filev <- evalToken file
+>   unless (Seq.length filev == 1)
+>              (error "Insertion must evaluate to a unique filename.")
+>   let fp = Seq.index filev 1
+>   (Seq.><) <$> (eval' =<< parse fp <$> liftIO (readFile fp)) <*> eval' cont
+> eval' (Mkinpipe file cont) = do
+>   filev <- evalToken file
+>   let fp = Seq.index filev 1
+>   (_, Just outh, _, ph) <- liftIO $ createProcess (proc fp []) { std_out = CreatePipe }
+>   result <- liftIO $ hGetContents outh
+>   liftIO $ waitForProcess ph
+>   (Seq.><) <$> eval' (parse "<pipe>" result) <*> eval' cont
+> eval' Mkeof = return Seq.empty
 
 A recipe is executed by supplying the recipe as standard input to the shell.
 (Note that unlike make, hmk feeds the entire recipe to the shell rather than
@@ -82,30 +130,6 @@ running each line of the recipe separately.)
 >   hSetBinaryMode inh False
 >   hPutStr inh text
 >   waitForProcess ph >>= IO.testExitCode
->
-> eval :: Mkfile -> IO (Seq (Stem -> Rule IO FilePath))
-> eval (Mkrule ts ps r flags cont) = do
->   tsv <- Seq.mapM evalToken ts
->   psv <- Seq.mapM evalToken ps
->   -- xxx support user supplied compare.
->   let f t stem = let rv = fmap (evalRecipe tsv t psv stem) r
->                  in Rule t (Seq.toList psv) rv IO.isStale
->   (Seq.><) <$> pure (fmap f tsv) <*> eval cont
-> eval (Mkassign attr var val cont) = do
->   -- xxx take into account attributes.
->   lits <- Seq.mapM evalToken val
->   setEnv var (freeze lits) True
->   eval cont
-> eval (Mkinsert file cont) = do
->   filev <- evalToken file
->   (Seq.><) <$> (eval =<< parse filev <$> readFile filev) <*> eval cont
-> eval (Mkinpipe file cont) = do
->   filev <- evalToken file
->   (_, Just outh, _, ph) <- createProcess (proc filev []) { std_out = CreatePipe }
->   result <- hGetContents outh
->   waitForProcess ph
->   (Seq.><) <$> eval (parse "<pipe>" result) <*> eval cont
-> eval Mkeof = return Seq.empty
 
 Version of eval where stems are instantiated to the empty string.
 
