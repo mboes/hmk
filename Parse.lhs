@@ -36,9 +36,12 @@ space."
 An mkfile is carved out into lines, each of which is separated into tokens,
 which are either a literal or a reference. Reference names may themselves
 contain references and literals, so a reference name is a sequence of tokens.
+Tokens can be composed, as in 'a${b}c', a token made of 2 literals and 1
+reference.
 
 > data Token = Lit String
->            | Ref (Seq Token)
+>            | Coll (Seq Token)
+>            | Ref Token
 >              deriving Show
 >
 > data AssignAttr = Export | Local
@@ -64,17 +67,17 @@ be executed during evaluation.
 Contrary to Plan9's mk, all ':' characters in prerequesites as well as in
 targets must be escaped. This is to simplify the implementation slightly.
 
-> token = (Ref . Seq.fromList <$> reference)
+> token = reference
 >         <|> substitution
->         <|> (Lit <$> literal)
+>         <|> collation
 >
-> reference = do
+> reference = Ref <$> do
 >   char '$'
 >   -- $name or ${name} or ${name:A%B=C%D}
 >   name <|> bname
 >     -- banned characters from variable references according to rc(1) manual.
->     where name = (:[]) . Lit <$> many1 (noneOf " \t\n#;&|^$=`'{}()<>:")
->           bname = between (char '{') (char '}') (many1 token)
+>     where name = Lit <$> many1 (noneOf " \t\n#;&|^$=`'{}()<>:")
+>           bname = between (char '{') (char '}') collation
 >
 > substitution = between (char '{') (char '}') $ do
 >                      a <- quotableTill "%"; char '%'
@@ -82,9 +85,16 @@ targets must be escaped. This is to simplify the implementation slightly.
 >                      c <- quotableTill "%"; char '%'
 >                      d <- quotableTill "}"
 >                      return (error "Unimplemented.") -- xxx
->
-> literal = quotableTill " \t\n:"
 
+A literal or a collation of tokens.
+
+> collation = do
+>   x <- many1 (literal <|> reference)
+>   case x of
+>     [l] -> return l
+>     toks -> return $ Coll (Seq.fromList toks)
+>
+> literal = Lit <$> quotableTill " \t\n:$"
 
 "Special characters may be quoted using single quotes '' as in rc(1)."
 
@@ -137,6 +147,6 @@ Munch all whitespace on a line.
 >     where collect = (do indentation; (:) <$> (many (noneOf "\n") <* newline) <*> collect)
 >                     <|> return []
 >
-> p_insert = undefined
+> p_insert = char '*' >> return undefined
 >
-> p_inpipe = undefined
+> p_inpipe = char '*' >> return undefined
