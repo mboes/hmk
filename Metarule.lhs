@@ -44,7 +44,7 @@ matching rules.
 >                 stems = collectMatches schema targets
 >             in fmap (\stem -> expand stem (clo stem)) stems
 >     collectMatches ('%':suffix) ts =
->         let re = compile ("(*)." ++ suffix ++ "$") [anchored, dollar_endonly]
+>         let re = compile ("(.*)" ++ suffix ++ "$") [anchored, dollar_endonly]
 >         -- The prefix is in the captured sub-pattern at index 1.
 >         in seqCatMaybes (fmap (\t -> fmap (!! 1) (match re t [])) ts)
 >     collectMatches s ts = Seq.empty
