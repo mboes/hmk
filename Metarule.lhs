@@ -26,6 +26,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 >
 > import Text.Regex.PCRE.Light.Char8
 
+Remove any uninstantiated meta-rule.
+
+> cleanup :: Seq (Rule a FilePath) -> Seq (Rule a FilePath)
+> cleanup = Seq.foldr f Seq.empty where
+>     f r rs = case target r of
+>                '%':_ -> rs
+>                _ -> r Seq.<| rs
+
 Instantiation of meta-rules. 'instantiate' is a helper function for
 'instantiateRecurse', which instantiates meta-rules based on current targets
 and then recursively instantiates meta-rules with the prerequesites of the
@@ -37,8 +45,8 @@ matching rules.
 > seqCatMaybes = Seq.foldr (\x xs -> maybe xs (Seq.<| xs) x) Seq.empty
 >
 > instantiate :: Seq FilePath   -- ^ Targets.
->             -> Seq (Stem -> Rule IO FilePath)
->             -> Seq (Rule IO FilePath)
+>             -> Seq (Stem -> Rule a FilePath)
+>             -> Seq (Rule a FilePath)
 > instantiate targets closures = join $ fmap f closures where
 >     f clo = let schema = target (clo undefined)
 >                 stems = collectMatches schema targets
@@ -56,14 +64,16 @@ matching rules.
 >     subst stem x = x
 >
 > instantiateRecurse :: Seq FilePath
->                    -> Seq (Stem -> Rule IO FilePath)
->                    -> Seq (Rule IO FilePath)
-> instantiateRecurse targets closures = evalState (go targets) Set.empty where
->     go targets | Seq.null targets = return Seq.empty
->                | otherwise = do
->       seen <- get
->       let rules = instantiate targets closures
->           ts = (Set.\\ seen) $ Set.unions $ Seq.toList $
->                fmap (Set.fromList . prereqs) rules
->       put (seen `Set.union` ts)
->       (rules Seq.><) <$> go (Seq.fromList (Set.toList ts))
+>                    -> Seq (Stem -> Rule a FilePath)
+>                    -> Seq (Rule a FilePath)
+> instantiateRecurse targets closures =
+>     let new = evalState (go targets) Set.empty
+>     in cleanup (fmap ($ "") closures) Seq.>< new
+>     where go targets | Seq.null targets = return Seq.empty
+>                      | otherwise = do
+>             seen <- get
+>             let rules = instantiate targets closures
+>                 ts = (Set.\\ seen) $ Set.unions $ Seq.toList $
+>                      fmap (Set.fromList . prereqs) rules
+>             put (seen `Set.union` ts)
+>             (rules Seq.><) <$> go (Seq.fromList (Set.toList ts))
