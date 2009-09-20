@@ -64,7 +64,10 @@ this instantiation is performed post evaluation.
 
 > type Stem = String
 >
-> addVariable var val = modify (Map.insert var (val :: Seq String))
+> addVariable var val = do
+>   modify (Map.insert var (val :: Seq String))
+>   liftIO $ setEnv var (freeze val) True
+>
 > lookupVariable var = Map.findWithDefault (Seq.empty) var <$> get
 >
 > evalToken (Lit x) = return (Seq.singleton x)
@@ -77,12 +80,7 @@ this instantiation is performed post evaluation.
 >                lookupVariable (freeze var)
 >
 > eval :: Mkfile -> IO (Seq (Stem -> Rule IO FilePath))
-> eval mkfile = do
->   (rules, tbl) <- runStateT (eval' mkfile) Map.empty
->   export tbl
->   return rules
->     where -- export mkfile variable env to system environment.
->           export = Map.sequence_ . Map.mapWithKey (\k x -> setEnv k (freeze x) True)
+> eval mkfile = evalStateT (eval' mkfile) Map.empty
 >
 > eval' (Mkrule ts ps r flags cont) = do
 >   tsv <- Seq.msum <$> Seq.mapM evalToken ts
