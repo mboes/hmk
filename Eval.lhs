@@ -84,13 +84,15 @@ this instantiation is performed post evaluation.
 >                lookupVariable (freeze var)
 >
 > eval :: Mkfile -> IO (Seq (Stem -> Rule IO FilePath))
-> eval mkfile = evalStateT (eval' mkfile) Map.empty
+> eval mkfile = evalStateT (init >> eval' mkfile) Map.empty
+>     where init = addVariable "MKSHELL" (Seq.singleton defaultShell)
 >
 > eval' (Mkrule ts ps r flags cont) = do
 >   tsv <- Seq.msum <$> Seq.mapM evalToken ts
 >   psv <- Seq.msum <$> Seq.mapM evalToken ps
 >   -- xxx support user supplied compare.
->   let f t stem = let rv = fmap (evalRecipe tsv t psv stem) r
+>   shell <- (`Seq.index` 0) <$> lookupVariable "MKSHELL"
+>   let f t stem = let rv = fmap (evalRecipe tsv t psv stem shell) r
 >                  in Rule t (Seq.toList psv) rv IO.isStale
 >   (Seq.><) <$> pure (fmap f tsv) <*> eval' cont
 > eval' (Mkassign attr var val cont) = do
@@ -117,7 +119,7 @@ A recipe is executed by supplying the recipe as standard input to the shell.
 (Note that unlike make, hmk feeds the entire recipe to the shell rather than
 running each line of the recipe separately.)
 
-> evalRecipe alltarget target prereq stem text newprereq = do
+> evalRecipe alltarget target prereq stem shell text newprereq = do
 >   pid <- show <$> getProcessID
 >   setEnv "alltarget" (freeze alltarget) True
 >   setEnv "newprereq" (intercalate " " newprereq) True
@@ -127,7 +129,7 @@ running each line of the recipe separately.)
 >   setEnv "prereq" (freeze prereq) True
 >   setEnv "stem" stem True
 >   setEnv "target" target True
->   (Just inh, _, _, ph) <- createProcess (proc defaultShell ["-e"])
+>   (Just inh, _, _, ph) <- createProcess (proc shell ["-e"])
 >                           { std_in = CreatePipe }
 >   hSetBinaryMode inh False
 >   hPutStr inh text
