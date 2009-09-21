@@ -68,9 +68,11 @@ this instantiation is performed post evaluation.
 
 > type Stem = String
 >
-> addVariable var val = do
+> addVariable attr var val = do
 >   modify (Map.insert var (val :: Seq String))
->   liftIO $ setEnv var (freeze val) True
+>   case attr of
+>     Export -> liftIO $ setEnv var (freeze val) True
+>     Local -> return ()
 >
 > lookupVariable var = Map.findWithDefault (Seq.empty) var <$> get
 >
@@ -85,7 +87,7 @@ this instantiation is performed post evaluation.
 >
 > eval :: Mkfile -> IO (Seq (Stem -> Rule IO FilePath))
 > eval mkfile = evalStateT (init >> eval' mkfile) Map.empty
->     where init = addVariable "MKSHELL" (Seq.singleton defaultShell)
+>     where init = addVariable Export "MKSHELL" (Seq.singleton defaultShell)
 >
 > eval' (Mkrule ts ps r flags cont) = do
 >   tsv <- Seq.msum <$> Seq.mapM evalToken ts
@@ -98,7 +100,7 @@ this instantiation is performed post evaluation.
 > eval' (Mkassign attr var val cont) = do
 >   -- xxx take into account attributes.
 >   lits <- Seq.msum <$> Seq.mapM evalToken val
->   addVariable var lits
+>   addVariable attr var lits
 >   eval' cont
 > eval' (Mkinsert file cont) = do
 >   filev <- evalToken file

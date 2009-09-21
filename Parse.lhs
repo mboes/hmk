@@ -13,7 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-> module Parse ( Token(..), Mkfile(..), parse ) where
+> module Parse ( Token(..), Mkfile(..), AssignAttr(..), parse ) where
 
 Parse mkfile's to a set of rules. The following quoted comments in this source
 file are all excerpts from the man page for plan9's mk command, so are
@@ -127,9 +127,17 @@ Munch all whitespace on a line.
 > p_assignment = try $ do
 >   var <- quotableTill " \t="
 >   char '='
+>   attr <- option Export p_assignment_attr
 >   value <- sepBy token whitespace
 >   newline
->   Mkassign Export var (Seq.fromList value) <$> p_toplevel
+>   Mkassign attr var (Seq.fromList value) <$> p_toplevel
+>
+> p_assignment_attr = try $ do
+>   c <- anyChar
+>   char '='
+>   case c of
+>     'U' -> return Local
+>     _ -> error "Unknown attribute."
 >
 > p_rule = do
 >   targets <- Seq.fromList <$> many1 token
