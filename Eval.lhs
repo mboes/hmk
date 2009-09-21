@@ -34,6 +34,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import System.Posix.Env
 > import System.Posix.Process (getProcessID)
 
+Default shell to pass recipes to. The shell used should understand the "-e"
+switch, which means stop executing on first non-zero exit status.
+
+> defaultShell = "/bin/sh"
 
 > instance Monad m => Applicative (StateT s m) where
 >     pure = return
@@ -123,7 +127,7 @@ running each line of the recipe separately.)
 >   setEnv "prereq" (freeze prereq) True
 >   setEnv "stem" stem True
 >   setEnv "target" target True
->   (Just inh, _, _, ph) <- createProcess (proc "/bin/sh" ["-e"])
+>   (Just inh, _, _, ph) <- createProcess (proc defaultShell ["-e"])
 >                           { std_in = CreatePipe }
 >   hSetBinaryMode inh False
 >   hPutStr inh text
