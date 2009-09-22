@@ -36,6 +36,6 @@ executable hmk
     other-modules:   Parse, Eval, Metarule
     extensions:	     RecursiveDo, PatternGuards, NamedFieldPuns
     build-depends:   base, bytestring, containers,
-                     process, unix, filepath >= 1.1,
+                     directory, process, unix, filepath >= 1.1,
                      mtl, parsec >= 3.0.0, pcre-light >= 0.3
                      

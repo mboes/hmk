@@ -50,6 +50,7 @@ that we will compute a schedule, ie a list of tasks.
 >                 deriving Show
 >
 > data Result = TaskSuccess | TaskFailure
+>               deriving (Eq, Show)
 > type Task m = m Result
 > type Schedule m = [Task m]
 

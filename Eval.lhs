@@ -28,8 +28,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import Control.Applicative
 > import Control.Monad.State
 > import Data.List (intercalate)
+> import Data.Maybe (isNothing)
 >
 > import System.IO
+> import System.Directory
 > import System.Process
 > import System.Posix.Env
 > import System.Posix.Process (getProcessID)
@@ -89,12 +91,17 @@ this instantiation is performed post evaluation.
 > eval mkfile = evalStateT (init >> eval' mkfile) Map.empty
 >     where init = addVariable Export "MKSHELL" (Seq.singleton defaultShell)
 >
-> eval' (Mkrule ts ps r flags cont) = do
+> eval' (Mkrule ts flag ps r cmd cont) = do
 >   tsv <- Seq.msum <$> Seq.mapM evalToken ts
 >   psv <- Seq.msum <$> Seq.mapM evalToken ps
 >   -- xxx support user supplied compare.
 >   shell <- (`Seq.index` 0) <$> lookupVariable "MKSHELL"
->   let f t stem = let rv = fmap (evalRecipe tsv t psv stem shell) r
+>   let f t stem = let rv = if flag == Just 'N' && isNothing r
+>                           then Just $ evalRecipe tsv t flag psv stem shell ("touch " ++ t)
+>                           else fmap (evalRecipe tsv t flag psv stem shell) r
+>                      cmp = if flag == Just 'V'
+>                            then (\_ _ -> return True)
+>                            else IO.isStale
 >                  in Rule t (Seq.toList psv) rv IO.isStale
 >   (Seq.><) <$> pure (fmap f tsv) <*> eval' cont
 > eval' (Mkassign attr var val cont) = do
@@ -121,7 +128,7 @@ A recipe is executed by supplying the recipe as standard input to the shell.
 (Note that unlike make, hmk feeds the entire recipe to the shell rather than
 running each line of the recipe separately.)
 
-> evalRecipe alltarget target prereq stem shell text newprereq = do
+> evalRecipe alltarget target flag prereq stem shell text newprereq = do
 >   pid <- show <$> getProcessID
 >   setEnv "alltarget" (freeze alltarget) True
 >   setEnv "newprereq" (intercalate " " newprereq) True
@@ -131,11 +138,18 @@ running each line of the recipe separately.)
 >   setEnv "prereq" (freeze prereq) True
 >   setEnv "stem" stem True
 >   setEnv "target" target True
+>   if flag /= Just 'Q' then putStr text else return ()
 >   (Just inh, _, _, ph) <- createProcess (proc shell ["-e"])
 >                           { std_in = CreatePipe }
 >   hSetBinaryMode inh False
 >   hPutStr inh text
->   waitForProcess ph >>= IO.testExitCode
+>   code <- waitForProcess ph >>= IO.testExitCode
+>   case flag of
+>     Just 'D' -> case code of
+>                   TaskFailure -> removeFile target >> return code
+>                   TaskSuccess -> return code
+>     Just 'E' -> return TaskSuccess
+>     _ -> return code
 
 Version of eval where stems are instantiated to the empty string.
 

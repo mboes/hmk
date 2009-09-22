@@ -47,7 +47,7 @@ reference.
 > data AssignAttr = Export | Local
 >                   deriving Show
 >
-> data Mkfile = Mkrule (Seq Token) (Seq Token) (Maybe String) (Maybe String) Mkfile
+> data Mkfile = Mkrule (Seq Token) (Maybe Char) (Seq Token) (Maybe String) (Maybe String) Mkfile
 >             | Mkassign AssignAttr String (Seq Token) Mkfile
 >             | Mkinsert Token Mkfile -- lines beginning with '<'
 >             | Mkinpipe Token Mkfile -- lines beginning with '<|'
@@ -143,11 +143,18 @@ Munch all whitespace on a line.
 >   targets <- Seq.fromList <$> many1 token
 >   whitespace
 >   char ':'
+>   flag <- option Nothing p_rule_flag
 >   whitespace
 >   prereqs <- Seq.fromList <$> sepBy token whitespace
 >   newline
 >   recipe <- p_recipe
->   Mkrule targets prereqs recipe Nothing <$> p_toplevel
+>   Mkrule targets flag prereqs recipe Nothing <$> p_toplevel
+>
+> p_rule_flag = try $ do
+>   c <- anyChar
+>   cmd <- if c == 'P' then quotableTill ":" else return ""
+>   char ':'
+>   return $ Just c
 >
 > p_recipe = do
 >   lines <- collect
