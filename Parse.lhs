@@ -13,7 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-> module Parse ( Token(..), Mkfile(..), AssignAttr(..), parse ) where
+> module Parse ( Token(..), Flag(..), Mkfile(..), AssignAttr(..), parse ) where
 
 Parse mkfile's to a set of rules. The following quoted comments in this source
 file are all excerpts from the man page for plan9's mk command, so are
@@ -46,8 +46,45 @@ reference.
 >
 > data AssignAttr = Export | Local
 >                   deriving Show
+
+Rule flags, according to the mk manual for plan9:
+
+ status, the target is deleted.
+
+E : Continue execution if the recipe draws errors.
+
+N : If there is no recipe, the target has its time updated.
+
+n : The rule is a meta-rule that cannot be a target of a virtual rule.
+    Only files match the pattern in the target.
+
+P : The characters after the P until the terminating : are taken as a program
+    name. It will be invoked as $MKSHELL -c prog 'arg1' 'arg2' and should
+    return a zero exit status if and only if arg1 is up to date with respect
+    to arg2. Date stamps are still propagated in the normal way.
+
+Q : The recipe is not printed prior to execution.
+
+R : The rule is a meta-rule using regular expressions. In the rule, % has no
+    special meaning. The target is interpreted as a regular expression as
+    defined in regexp(7). The prerequisites may contain references to
+    subexpressions in form \n, as in the substitute command of sed(1).
+
+U : The targets are considered to have been updated even if the recipe
+    did not do so.
+
+V : The targets of this rule are marked as virtual. They are distinct
+    from files of the same name.
+
+> data Flag = Flag_D | Flag_E | Flag_N | Flag_n | Flag_P String
+>           | Flag_Q | Flag_R | Flag_U | Flag_V
+>             deriving (Eq, Ord, Show)
 >
-> data Mkfile = Mkrule (Seq Token) (Maybe Char) (Seq Token) (Maybe String) (Maybe String) Mkfile
+> data Mkfile = Mkrule (Seq Token)    -- targets
+>                      (Maybe Token)  -- flags
+>                      (Seq Token)    -- prerequesites
+>                      (Maybe String) -- recipe
+>                      Mkfile
 >             | Mkassign AssignAttr String (Seq Token) Mkfile
 >             | Mkinsert Token Mkfile -- lines beginning with '<'
 >             | Mkinpipe Token Mkfile -- lines beginning with '<|'
@@ -140,21 +177,17 @@ Munch all whitespace on a line.
 >     _ -> error "Unknown attribute."
 >
 > p_rule = do
->   targets <- Seq.fromList <$> many1 token
+>   targets <- Seq.fromList <$> sepBy1 token whitespace
 >   whitespace
 >   char ':'
->   flag <- option Nothing p_rule_flag
+>   flags <- option Nothing p_rule_flags
 >   whitespace
 >   prereqs <- Seq.fromList <$> sepBy token whitespace
 >   newline
 >   recipe <- p_recipe
->   Mkrule targets flag prereqs recipe Nothing <$> p_toplevel
+>   Mkrule targets flags prereqs recipe <$> p_toplevel
 >
-> p_rule_flag = try $ do
->   c <- anyChar
->   cmd <- if c == 'P' then quotableTill ":" else return ""
->   char ':'
->   return $ Just c
+> p_rule_flags = try (Just <$> token <* char ':')
 >
 > p_recipe = do
 >   lines <- collect

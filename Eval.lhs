@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import qualified Data.Foldable as Seq
 > import qualified Data.Map as Map
 > import qualified Data.Foldable as Map
+> import qualified Data.Set as Set
 > import Control.Applicative
 > import Control.Monad.State
 > import Data.List (intercalate)
@@ -91,15 +92,16 @@ this instantiation is performed post evaluation.
 > eval mkfile = evalStateT (init >> eval' mkfile) Map.empty
 >     where init = addVariable Export "MKSHELL" (Seq.singleton defaultShell)
 >
-> eval' (Mkrule ts flag ps r cmd cont) = do
+> eval' (Mkrule ts flags ps r cont) = do
 >   tsv <- Seq.msum <$> Seq.mapM evalToken ts
+>   flagsv <- evalFlags flags
 >   psv <- Seq.msum <$> Seq.mapM evalToken ps
 >   -- xxx support user supplied compare.
 >   shell <- (`Seq.index` 0) <$> lookupVariable "MKSHELL"
->   let f t stem = let rv = if flag == Just 'N' && isNothing r
->                           then Just $ evalRecipe tsv t flag psv stem shell ("touch " ++ t)
->                           else fmap (evalRecipe tsv t flag psv stem shell) r
->                      cmp = if flag == Just 'V'
+>   let f t stem = let rv = if Set.member Flag_N flagsv && isNothing r
+>                           then Just $ evalRecipe tsv t flagsv psv stem shell ("touch " ++ t)
+>                           else fmap (evalRecipe tsv t flagsv psv stem shell) r
+>                      cmp = if Set.member Flag_V flagsv
 >                            then (\_ _ -> return True)
 >                            else IO.isStale
 >                  in Rule t (Seq.toList psv) rv IO.isStale
@@ -128,7 +130,7 @@ A recipe is executed by supplying the recipe as standard input to the shell.
 (Note that unlike make, hmk feeds the entire recipe to the shell rather than
 running each line of the recipe separately.)
 
-> evalRecipe alltarget target flag prereq stem shell text newprereq = do
+> evalRecipe alltarget target flags prereq stem shell text newprereq = do
 >   pid <- show <$> getProcessID
 >   setEnv "alltarget" (freeze alltarget) True
 >   setEnv "newprereq" (intercalate " " newprereq) True
@@ -138,18 +140,41 @@ running each line of the recipe separately.)
 >   setEnv "prereq" (freeze prereq) True
 >   setEnv "stem" stem True
 >   setEnv "target" target True
->   if flag /= Just 'Q' then putStr text else return ()
+>   if not (Set.member Flag_Q flags) then putStr text else return ()
 >   (Just inh, _, _, ph) <- createProcess (proc shell ["-e"])
 >                           { std_in = CreatePipe }
 >   hSetBinaryMode inh False
 >   hPutStr inh text
 >   code <- waitForProcess ph >>= IO.testExitCode
->   case flag of
->     Just 'D' -> case code of
->                   TaskFailure -> removeFile target >> return code
->                   TaskSuccess -> return code
->     Just 'E' -> return TaskSuccess
->     _ -> return code
+>   let final = if Set.member Flag_E flags
+>               then return TaskSuccess else return code :: IO Result
+>   let final = if Set.member Flag_D flags
+>               then case code of
+>                        TaskFailure -> removeFile target >> final
+>                        TaskSuccess -> final
+>               else final
+>   final
+
+Parsing flags has to be done at evaluation time because we allow variable
+references in place of flag characters, for instance to programmatically turn
+on or off verbosity of rules, etc. The content of the flags field of a rule is
+necessarily either a collation or a literal.
+
+> evalFlags Nothing = return Set.empty
+> evalFlags (Just tok) = do
+>   v <- evalToken tok
+>   when (Seq.length v /= 1) (error "No spaces allowed in flags field.")
+>   return $ interp (Seq.index v 1)
+>     where interp "" = Set.empty
+>           interp ('D':xs) = Set.insert Flag_D (interp xs)
+>           interp ('E':xs) = Set.insert Flag_E (interp xs)
+>           interp ('N':xs) = Set.insert Flag_N (interp xs)
+>           interp ('n':xs) = Set.insert Flag_n (interp xs)
+>           interp ('P':xs) = Set.singleton (Flag_P xs)
+>           interp ('Q':xs) = Set.insert Flag_Q (interp xs)
+>           interp ('R':xs) = Set.insert Flag_R (interp xs)
+>           interp ('U':xs) = Set.insert Flag_U (interp xs)
+>           interp ('V':xs) = Set.insert Flag_V (interp xs)
 
 Version of eval where stems are instantiated to the empty string.
 
