@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 >
 > import System.IO
 > import System.Directory
+> import System.Exit
 > import System.Process
 > import System.Posix.Env
 > import System.Posix.Process (getProcessID)
@@ -101,10 +102,13 @@ this instantiation is performed post evaluation.
 >   let f t stem = let rv = if Set.member Flag_N flagsv && isNothing r
 >                           then Just $ evalRecipe tsv t flagsv psv stem shell ("touch " ++ t)
 >                           else fmap (evalRecipe tsv t flagsv psv stem shell) r
->                      cmp = if Set.member Flag_V flagsv
->                            then (\_ _ -> return True)
->                            else IO.isStale
->                  in Rule t (Seq.toList psv) rv IO.isStale
+>                      cmp = Set.fold (\x cmp -> case x of
+>                                                    Flag_P cmp -> evalCompare cmp
+>                                                    _ -> cmp) IO.isStale flagsv
+>                  in let cmp = if Set.member Flag_V flagsv
+>                               then (\_ _ -> return True :: IO Bool)
+>                               else cmp
+>                     in Rule t (Seq.toList psv) rv IO.isStale
 >   (Seq.><) <$> pure (fmap f tsv) <*> eval' cont
 > eval' (Mkassign attr var val cont) = do
 >   -- xxx take into account attributes.
@@ -175,6 +179,15 @@ necessarily either a collation or a literal.
 >           interp ('R':xs) = Set.insert Flag_R (interp xs)
 >           interp ('U':xs) = Set.insert Flag_U (interp xs)
 >           interp ('V':xs) = Set.insert Flag_V (interp xs)
+
+A user supplied comparison command is wrapped into an action in the IO monad.
+
+> evalCompare cmp x y = do
+>   code <- rawSystem cmp [x, y]
+>   case code of
+>       ExitSuccess -> return False
+>       ExitFailure _ -> return True
+
 
 Version of eval where stems are instantiated to the empty string.
 
