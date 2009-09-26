@@ -150,7 +150,8 @@ running each line of the recipe separately.)
 >           else proc shell ["-ex"]
 >   (Just inh, _, _, ph) <- createProcess p { std_in = CreatePipe }
 >   hSetBinaryMode inh False
->   hPutStr inh text
+>   hPutStrLn inh text
+>   hClose inh
 >   code <- waitForProcess ph >>= IO.testExitCode
 >   let final = if Set.member Flag_E flags
 >               then return TaskSuccess else return code :: IO Result
