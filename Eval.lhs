@@ -13,7 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-> module Eval (eval) where
+> module Eval (eval, evalNoMeta) where
 >
 > import Parse
 > import Control.Hmk
