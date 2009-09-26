@@ -171,7 +171,7 @@ necessarily either a collation or a literal.
 > evalFlags (Just tok) = do
 >   v <- evalToken tok
 >   when (Seq.length v /= 1) (error "No spaces allowed in flags field.")
->   return $ interp (Seq.index v 1)
+>   return $ interp (Seq.index v 0)
 >     where interp "" = Set.empty
 >           interp ('D':xs) = Set.insert Flag_D (interp xs)
 >           interp ('E':xs) = Set.insert Flag_E (interp xs)
