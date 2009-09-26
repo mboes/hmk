@@ -155,12 +155,12 @@ running each line of the recipe separately.)
 >   code <- waitForProcess ph >>= IO.testExitCode
 >   let final = if Set.member Flag_E flags
 >               then return TaskSuccess else return code :: IO Result
->   let final = if Set.member Flag_D flags
+>   let final' = if Set.member Flag_D flags
 >               then case code of
 >                        TaskFailure -> removeFile target >> final
 >                        TaskSuccess -> final
 >               else final
->   final
+>   final'
 
 Parsing flags has to be done at evaluation time because we allow variable
 references in place of flag characters, for instance to programmatically turn
