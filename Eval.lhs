@@ -38,8 +38,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import System.Posix.Env
 > import System.Posix.Process (getProcessID)
 
-Default shell to pass recipes to. The shell used should understand the "-e"
-switch, which means stop executing on first non-zero exit status.
+Default shell to pass recipes to. The shell used should understand the -e and
+-x switches, which means stop executing on first non-zero exit status and
+trace execution, respectively.
 
 > defaultShell = "/bin/sh"
 
@@ -144,9 +145,10 @@ running each line of the recipe separately.)
 >   setEnv "prereq" (freeze prereq) True
 >   setEnv "stem" stem True
 >   setEnv "target" target True
->   if not (Set.member Flag_Q flags) then putStr text else return ()
->   (Just inh, _, _, ph) <- createProcess (proc shell ["-e"])
->                           { std_in = CreatePipe }
+>   let p = if Set.member Flag_Q flags
+>           then proc shell ["-e"]
+>           else proc shell ["-ex"]
+>   (Just inh, _, _, ph) <- createProcess p { std_in = CreatePipe }
 >   hSetBinaryMode inh False
 >   hPutStr inh text
 >   code <- waitForProcess ph >>= IO.testExitCode
