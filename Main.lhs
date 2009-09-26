@@ -30,24 +30,21 @@ also the parser's job to carry forward any variable substitutions.
 > import Eval
 > import Metarule
 > import Control.Monad
-> import Control.Arrow
+> import Control.Applicative
 > import qualified Data.Sequence as Seq
 > import qualified Data.Foldable as Seq
 
 The exit code of the command is the exit code of the last recipe executed.
 
 > import System.IO
-> import System.Exit
 > import System.Environment
 >
 >
 > main :: IO ()
 > main = do
 >   targets <- getArgs
->   rules <- readFile "mkfile"
->            >>= return . parse "mkfile"
->            >>= eval
->            >>= return . Seq.toList . instantiateRecurse (Seq.fromList targets)
+>   metarules <- eval =<< parse "mkfile" <$> readFile "mkfile"
+>   let rules = Seq.toList $ instantiateRecurse (Seq.fromList targets) metarules
 >   when (null rules) (fail "No rules in mkfile.")
 
 Per the mk man page, if no targets are specified on the command line, then
