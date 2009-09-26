@@ -1,0 +1,14 @@
+# This is an example mkfile
+
+multi=a b c
+obj=U=o
+src=U=c
+qu=Q
+
+$multi: d e f
+
+%.$obj: %.$src
+    echo $stem
+
+quiet:$qu: d
+	echo quiet target
