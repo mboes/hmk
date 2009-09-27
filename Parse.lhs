@@ -155,8 +155,10 @@ Munch all whitespace on a line.
 > indentation = skipMany1 (oneOf " \t")
 
 > p_toplevel = do
->   many newline
+>   many (newline <|> p_comment)
 >   p_assignment <|> p_rule <|> p_insert <|> p_inpipe <|> (Mkeof <$ eof)
+>
+> p_comment = char '#' <* manyTill anyChar newline
 
 " Assignments and rules are distinguished by the first unquoted occurrence of
 : (rule) or = (assignment)."
