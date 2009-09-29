@@ -12,3 +12,6 @@ $multi: d e f
 
 quiet:$qu: d
 	echo quiet target
+
+world:V: a.o
+	echo making the world.
