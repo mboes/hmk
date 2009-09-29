@@ -33,6 +33,7 @@ library
 
 executable hmk
     main-is:         Main.lhs
+    ghc-options:     -fwarn-unused-imports
     other-modules:   Parse, Eval, Metarule
     extensions:	     RecursiveDo, PatternGuards, NamedFieldPuns
     build-depends:   base, bytestring, containers,
