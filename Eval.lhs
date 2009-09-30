@@ -212,11 +212,9 @@ references in place of flag characters, for instance to programmatically turn
 on or off verbosity of rules, etc. The content of the flags field of a rule is
 necessarily either a collation or a literal.
 
-> evalFlags Nothing = return Set.empty
-> evalFlags (Just tok) = do
->   v <- evalToken tok
->   when (Seq.length v /= 1) (error "No spaces allowed in flags field.")
->   return $ interp (Seq.index v 0)
+> evalFlags toks = do
+>   v <- Seq.msum <$> Seq.mapM evalToken toks
+>   return $ interp (freeze v)
 >     where interp "" = Set.empty
 >           interp ('D':xs) = Set.insert Flag_D (interp xs)
 >           interp ('E':xs) = Set.insert Flag_E (interp xs)

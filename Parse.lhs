@@ -81,7 +81,7 @@ V : The targets of this rule are marked as virtual. They are distinct
 >             deriving (Eq, Ord, Show)
 >
 > data Mkfile = Mkrule (Seq Token)    -- targets
->                      (Maybe Token)  -- flags
+>                      (Seq Token)  -- flags
 >                      (Seq Token)    -- prerequesites
 >                      (Maybe String) -- recipe
 >                      Mkfile
@@ -182,14 +182,14 @@ Munch all whitespace on a line.
 >   targets <- Seq.fromList <$> sepBy1 token whitespace
 >   whitespace
 >   char ':'
->   flags <- option Nothing p_rule_flags
+>   flags <- option Seq.empty p_rule_flags
 >   whitespace
 >   prereqs <- Seq.fromList <$> sepBy token whitespace
 >   newline
 >   recipe <- p_recipe
 >   Mkrule targets flags prereqs recipe <$> p_toplevel
 >
-> p_rule_flags = try (Just <$> token <* char ':')
+> p_rule_flags = try (Seq.fromList <$> sepBy1 token whitespace <* char ':')
 >
 > p_recipe = do
 >   lines <- collect
