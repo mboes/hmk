@@ -41,6 +41,9 @@ matching rules.
 
 > type Stem = String
 >
+> seqFilter :: (a -> Bool) -> Seq a -> Seq a
+> seqFilter f = Seq.foldr (\x xs -> if f x then x Seq.<| xs else xs) Seq.empty
+>
 > seqCatMaybes :: Seq (Maybe a) -> Seq a
 > seqCatMaybes = Seq.foldr (\x xs -> maybe xs (Seq.<| xs) x) Seq.empty
 >
@@ -68,12 +71,14 @@ matching rules.
 >                    -> Seq (Rule a FilePath)
 > instantiateRecurse targets closures =
 >     let new = evalState (go targets) Set.empty
->     in cleanup (fmap ($ "") closures) Seq.>< new
->     where go targets | Seq.null targets = return Seq.empty
+>     in cleanup origrules Seq.>< new
+>     where origrules = fmap ($ "") closures
+>           go targets | Seq.null targets = return Seq.empty
 >                      | otherwise = do
 >             seen <- get
 >             let rules = instantiate targets closures
 >                 ts = (Set.\\ seen) $ Set.unions $ Seq.toList $
->                      fmap (Set.fromList . prereqs) rules
+>                      fmap (Set.fromList . prereqs) $
+>                      seqFilter (\r -> target r `Seq.elem` targets) origrules
 >             put (seen `Set.union` ts)
 >             (rules Seq.><) <$> go (Seq.fromList (Set.toList ts))
