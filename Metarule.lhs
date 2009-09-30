@@ -16,6 +16,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > module Metarule (instantiate, instantiateRecurse) where
 >
 > import Control.Hmk
+> import Eval
 >
 > import Data.Sequence (Seq)
 > import qualified Data.Sequence as Seq
@@ -28,10 +29,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 Remove any uninstantiated meta-rule.
 
-> cleanup :: Seq (Rule a FilePath) -> Seq (Rule a FilePath)
+> cleanup :: Seq (Rule a Target) -> Seq (Rule a Target)
 > cleanup = Seq.foldr f Seq.empty where
 >     f r rs = case target r of
->                '%':_ -> rs
+>                Pattern _ -> rs
 >                _ -> r Seq.<| rs
 
 Instantiation of meta-rules. 'instantiate' is a helper function for
@@ -47,28 +48,26 @@ matching rules.
 > seqCatMaybes :: Seq (Maybe a) -> Seq a
 > seqCatMaybes = Seq.foldr (\x xs -> maybe xs (Seq.<| xs) x) Seq.empty
 >
-> instantiate :: Seq FilePath   -- ^ Targets.
->             -> Seq (Stem -> Rule a FilePath)
->             -> Seq (Rule a FilePath)
+> instantiate :: Seq Target   -- ^ Targets.
+>             -> Seq (Stem -> Rule a Target)
+>             -> Seq (Rule a Target)
 > instantiate targets closures = join $ fmap f closures where
 >     f clo = let schema = target (clo undefined)
 >                 stems = collectMatches schema targets
 >             in fmap (\stem -> expand stem (clo stem)) stems
->     collectMatches ('%':suffix) ts =
+>     collectMatches (Pattern ('%':suffix)) ts =
 >         let re = compile ("(.*)" ++ suffix ++ "$") [anchored, dollar_endonly]
 >         -- The prefix is in the captured sub-pattern at index 1.
->         in seqCatMaybes (fmap (\t -> fmap (!! 1) (match re t [])) ts)
+>         in seqCatMaybes (fmap (\t -> fmap (!! 1) (match re t [])) (fmap name ts))
 >     collectMatches s ts = Seq.empty
 >     -- Substitute the stem for the percent characters in targets and
 >     -- prerequesites.
->     expand stem r@Rule{target,prereqs} = r { target = subst stem target
->                                            , prereqs = map (subst stem) prereqs }
->     subst stem ('%':suffix) = stem ++ suffix
->     subst stem x = x
+>     expand stem r@Rule{target,prereqs} = r { target = substituteStem stem target
+>                                            , prereqs = map (substituteStem stem) prereqs }
 >
-> instantiateRecurse :: Seq FilePath
->                    -> Seq (Stem -> Rule a FilePath)
->                    -> Seq (Rule a FilePath)
+> instantiateRecurse :: Seq Target
+>                    -> Seq (Stem -> Rule a Target)
+>                    -> Seq (Rule a Target)
 > instantiateRecurse targets closures =
 >     let new = evalState (go targets) Set.empty
 >     in cleanup origrules Seq.>< new

@@ -13,7 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-> module Eval (eval, evalNoMeta) where
+> module Eval (Target(..), eval, evalNoMeta, Eval.isStale, substituteStem) where
 >
 > import Parse
 > import Control.Hmk
@@ -28,6 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import qualified Data.Set as Set
 > import Control.Applicative
 > import Control.Monad.State
+> import Control.Monad.Writer
 > import Data.List (intercalate)
 > import Data.Maybe (isNothing)
 >
@@ -47,14 +48,38 @@ trace execution, respectively.
 > instance Monad m => Applicative (StateT s m) where
 >     pure = return
 >     (<*>) = ap
+>
+> instance (Monoid w, Monad m) => Applicative (WriterT w m) where
+>     pure = return
+>     (<*>) = ap
+
+Targets are either regular files, virtual or patterns. After instantiation of
+meta-rules the patterns disappear, leaving only files and virtual targets. But
+it cannot be known until after evaluation of all rules whether a target is
+virtual or not. However, thanks to lazy evaluation, we can lookup wether a
+target is virtual or not now, if we promise to build it later.
+
+> data Target = File { name :: FilePath }
+>             | Virtual { name :: String }
+>             | Pattern { name :: String }
+>               deriving Show
+
+> newtype RevAppend a = RevAppend a
+>
+> instance Monoid a => Monoid (RevAppend a) where
+>     mempty = RevAppend mempty
+>     mappend (RevAppend x) (RevAppend y) = RevAppend (mappend y x)
+
+Only the name of targets matters when comparing them, so we make equality into
+an equivalence relation rather than the default structural equality.
+
+> instance Eq Target where
+>     x == y = name x == name y
+>
+> instance Ord Target where
+>     compare x y = compare (name x) (name y)
 
 Variable references are substituted for their values, using the environment.
-
-The environment is a variable store that can be updated in place. It is very
-much not a persistent abstraction, so we implement it with an impure
-structure. For simplicity that structure is the system environment, since
-we'll need to communicate the environment to child processes using the system
-environment anyways.
 
 A list of tokens can be spliced, appended to, etc, to form a new list of
 tokens. Freezing means turning a list of tokens into a string, which cannot be
@@ -63,6 +88,14 @@ to the outside world, such as the system environment.
 
 > freeze :: Seq String -> String
 > freeze = intercalate " " . Seq.toList
+
+The environment is a variable store that can be updated in place. It is very
+much not a persistent abstraction. We implement it using an internal map
+rather than using the system environment directly because using the system
+environment would require retokenizing values when we look them up. The
+content of this internal map is immediately reflected into the system
+environment, however, because assignments that are exported need to be
+available to subprocesses forked during sourcing and piping.
 
 Evaluation substitutes values for all variable references, using the system
 environment as a variable store. Assignments are executed first, then PRule's
@@ -90,61 +123,73 @@ this instantiation is performed post evaluation.
 >                var <- evalToken tok
 >                lookupVariable (freeze var)
 >
-> eval :: Mkfile -> IO (Seq (Stem -> Rule IO FilePath))
-> eval mkfile = evalStateT (init >> eval' mkfile) Map.empty
+> eval :: Mkfile -> IO (Seq (Stem -> Rule IO Target))
+> eval mkfile = evalStateT (init >> go) Map.empty
 >     where init = addVariable Export "MKSHELL" (Seq.singleton defaultShell)
+>           go = mdo (rules, RevAppend virtuals) <- runWriterT (eval' virtuals mkfile)
+>                    return rules
 >
-> eval' (Mkrule ts flags ps r cont) = do
+> eval' virtuals (Mkrule ts flags ps r cont) = do
+>   let tag t = if t `elem` virtuals
+>               then Virtual t
+>               else case t of
+>                      '%':_ -> Pattern t
+>                      _ -> File t
 >   tsv <- Seq.msum <$> Seq.mapM evalToken ts
+>   psv <- fmap tag <$> Seq.msum <$> Seq.mapM evalToken ps
 >   flagsv <- evalFlags flags
->   psv <- Seq.msum <$> Seq.mapM evalToken ps
->   -- xxx support user supplied compare.
 >   shell <- (`Seq.index` 0) <$> lookupVariable "MKSHELL"
->   let f t stem = let rv = if Set.member Flag_N flagsv && isNothing r
->                           then Just $ evalRecipe tsv t flagsv psv stem shell ("touch " ++ t)
->                           else fmap (evalRecipe tsv t flagsv psv stem shell) r
->                      cmp = Set.fold (\x cmp -> case x of
->                                                    Flag_P cmp -> evalCompare cmp
->                                                    _ -> cmp) IO.isStale flagsv
->                  in let cmp = if Set.member Flag_V flagsv
->                               then (\_ _ -> return True :: IO Bool)
->                               else cmp
->                     in Rule t (Seq.toList psv) rv IO.isStale
->   (Seq.><) <$> pure (fmap f tsv) <*> eval' cont
-> eval' (Mkassign attr var val cont) = do
+>   let f tv stem = let t | Set.member Flag_V flagsv = Virtual tv
+>                         | '%':_ <- tv              = Pattern tv
+>                         | otherwise                = File tv
+>                       rv = if Set.member Flag_N flagsv && isNothing r
+>                            then Just $ evalRecipe tsv t flagsv psv stem shell ("touch " ++ name t)
+>                            else fmap (evalRecipe tsv t flagsv psv stem shell) r
+>                       cmp = Set.fold (\x cmp -> case x of
+>                                                   Flag_P cmp -> evalCompare cmp
+>                                                   _ -> cmp) Eval.isStale flagsv
+>                   in if Set.member Flag_V flagsv
+>                      then Rule t (Seq.toList psv) rv (\_ _ -> return True)
+>                      else Rule t (Seq.toList psv) rv cmp
+>   when (Set.member Flag_V flagsv) (Seq.mapM_ (tell . RevAppend . return) tsv)
+>   (Seq.><) <$> pure (fmap f tsv) <*> eval' virtuals cont
+> eval' virtuals (Mkassign attr var val cont) = do
 >   -- xxx take into account attributes.
 >   lits <- Seq.msum <$> Seq.mapM evalToken val
 >   addVariable attr var lits
->   eval' cont
-> eval' (Mkinsert file cont) = do
+>   eval' virtuals cont
+> eval' virtuals (Mkinsert file cont) = do
 >   filev <- evalToken file
 >   unless (Seq.length filev == 1)
 >              (error "Insertion must evaluate to a unique filename.")
 >   let fp = Seq.index filev 1
->   (Seq.><) <$> (eval' =<< parse fp <$> liftIO (readFile fp)) <*> eval' cont
-> eval' (Mkinpipe file cont) = do
+>   (Seq.><) <$> (eval' virtuals =<< parse fp <$> liftIO (readFile fp)) <*> eval' virtuals cont
+> eval' virtuals (Mkinpipe file cont) = do
 >   filev <- evalToken file
 >   let fp = Seq.index filev 1
 >   (_, Just outh, _, ph) <- liftIO $ createProcess (proc fp []) { std_out = CreatePipe }
 >   result <- liftIO $ hGetContents outh
 >   liftIO $ waitForProcess ph
->   (Seq.><) <$> eval' (parse "<pipe>" result) <*> eval' cont
-> eval' Mkeof = return Seq.empty
+>   (Seq.><) <$> eval' virtuals (parse "<pipe>" result) <*> eval' virtuals cont
+> eval' virtuals Mkeof = return Seq.empty
 
 A recipe is executed by supplying the recipe as standard input to the shell.
 (Note that unlike make, hmk feeds the entire recipe to the shell rather than
 running each line of the recipe separately.)
 
+> substituteStem stem (Pattern ('%':suffix)) = File (stem ++ suffix)
+> substituteStem stem x = x
+>
 > evalRecipe alltarget target flags prereq stem shell text newprereq = do
 >   pid <- show <$> getProcessID
 >   setEnv "alltarget" (freeze alltarget) True
->   setEnv "newprereq" (intercalate " " newprereq) True
+>   setEnv "newprereq" (intercalate " " (map (name . substituteStem stem) newprereq)) True
 >   setEnv "newmember" "" True -- xxx aggregates not supported.
 >   setEnv "nproc" (show 0) True
 >   setEnv "pid" pid True
->   setEnv "prereq" (freeze prereq) True
+>   setEnv "prereq" (freeze (fmap (name . substituteStem stem) prereq)) True
 >   setEnv "stem" stem True
->   setEnv "target" target True
+>   setEnv "target" (name $ substituteStem stem $ target) True
 >   let p = if Set.member Flag_Q flags
 >           then proc shell ["-e"]
 >           else proc shell ["-ex"]
@@ -157,7 +202,7 @@ running each line of the recipe separately.)
 >               then return TaskSuccess else return code :: IO Result
 >   let final' = if Set.member Flag_D flags
 >               then case code of
->                        TaskFailure -> removeFile target >> final
+>                        TaskFailure -> removeFile (name target) >> final
 >                        TaskSuccess -> final
 >               else final
 >   final'
@@ -185,14 +230,19 @@ necessarily either a collation or a literal.
 
 A user supplied comparison command is wrapped into an action in the IO monad.
 
-> evalCompare cmp x y = do
+> evalCompare cmp (File x) (File y) = do
 >   code <- rawSystem cmp [x, y]
 >   case code of
 >       ExitSuccess -> return False
 >       ExitFailure _ -> return True
 
+The default comparison action.
+
+> isStale (File x) (File y) = IO.isStale x y
+> isStale (File x) (Virtual y) = return True
+> isStale _ _ = error "impossible."
 
 Version of eval where stems are instantiated to the empty string.
 
-> evalNoMeta :: Mkfile -> IO (Seq (Rule IO FilePath))
+> evalNoMeta :: Mkfile -> IO (Seq (Rule IO Target))
 > evalNoMeta mkfile = fmap ($ "") <$> eval mkfile
