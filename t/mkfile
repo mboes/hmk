@@ -6,6 +6,7 @@ src=U=c
 qu=Q
 
 $multi: d e f
+    echo $prereq
 
 %.$obj: %.$src
     echo $stem
@@ -15,3 +16,6 @@ quiet:$qu: d
 
 world:V: a.o
 	echo making the world.
+
+cmp:Pcmp -s: d e
+	echo $prereq
