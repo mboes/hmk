@@ -5,17 +5,17 @@ maintainer:     Mathieu Boespflug <mboes@tweag.net>
 homepage:       http://code.haskell.org/~mboes/hmk
 synopsis:       A make alternative based on Plan9's mk.
 description:
-        Clone of Plan9's mk command, said to have "improved on make by
-        removing all the vowels from the name".
-
+        Clone of Plan9's mk command, said to have \"improved on make by
+        removing all the vowels from the name\".
+        .
         The library exports a generic dependency graph traversal that
         can be used independently of the rest.
-
+        .
         The documentation is embedded in the literate Haskell source.
-
-        /Note:/ the library is released to the /public domain/. Those
-        source files that are not part of the library are released
-        under GPLv3 or later.
+        .
+        /Note:/ the library portion is released to the /public
+        domain/. Those source files that are not part of the library
+        are released under GPLv3 or later.
 category:       Distribution
 license:        GPL
 license-file:   COPYING
@@ -25,7 +25,7 @@ build-type:     Simple
 tested-with:    GHC ==6.10
 
 library
-    build-depends:   base, containers
+    build-depends:   base < 5, containers
     extensions:	     RecursiveDo, PatternGuards
     exposed-modules: Control.Hmk
                      Control.Hmk.Analyze
@@ -36,7 +36,7 @@ executable hmk
     ghc-options:     -fwarn-unused-imports
     other-modules:   Parse, Eval, Metarule
     extensions:	     RecursiveDo, PatternGuards, NamedFieldPuns
-    build-depends:   base, bytestring, containers,
+    build-depends:   base < 5, bytestring, containers,
                      directory, process, unix, filepath >= 1.1,
                      mtl, parsec >= 3.0.0, pcre-light >= 0.3
                      
