@@ -163,13 +163,13 @@ Munch all whitespace on a line.
 " Assignments and rules are distinguished by the first unquoted occurrence of
 : (rule) or = (assignment)."
 
-> p_assignment = try $ do
+> p_assignment = try (do
 >   var <- quotableTill " \t="
 >   char '='
 >   attr <- option Export p_assignment_attr
 >   value <- sepBy token whitespace
 >   newline
->   Mkassign attr var (Seq.fromList value) <$> p_toplevel
+>   return $ Mkassign attr var (Seq.fromList value)) <*> p_toplevel
 >
 > p_assignment_attr = try $ do
 >   c <- anyChar
