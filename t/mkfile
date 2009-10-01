@@ -4,6 +4,9 @@ multi=a b c
 obj=U=o
 src=U=c
 qu=Q
+aux=aux
+
+<$aux
 
 $multi: d e f
     echo $prereq
