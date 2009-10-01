@@ -162,15 +162,21 @@ this instantiation is performed post evaluation.
 >   filev <- evalToken file
 >   unless (Seq.length filev == 1)
 >              (error "Insertion must evaluate to a unique filename.")
->   let fp = Seq.index filev 1
+>   let fp = Seq.index filev 0
 >   (Seq.><) <$> (eval' virtuals =<< parse fp <$> liftIO (readFile fp)) <*> eval' virtuals cont
-> eval' virtuals (Mkinpipe file cont) = do
->   filev <- evalToken file
->   let fp = Seq.index filev 1
->   (_, Just outh, _, ph) <- liftIO $ createProcess (proc fp []) { std_out = CreatePipe }
+> eval' virtuals (Mkinpipe command cont) = do
+>   commandv <- Seq.msum <$> Seq.mapM evalToken command
+>   when (Seq.length commandv == 0)
+>              (error "Command evaluated to empty string.")
+>   let (cmd:args) = Seq.toList commandv
+>   (_, Just outh, _, ph) <- liftIO $ createProcess (proc cmd args) { std_out = CreatePipe }
 >   result <- liftIO $ hGetContents outh
->   liftIO $ waitForProcess ph
->   (Seq.><) <$> eval' virtuals (parse "<pipe>" result) <*> eval' virtuals cont
+>   code <- liftIO $ waitForProcess ph
+>   case code of
+>     ExitSuccess ->
+>         (Seq.><) <$> eval' virtuals (parse "<pipe>" result) <*> eval' virtuals cont
+>     ExitFailure n ->
+>         error $ "Sub-process " ++ cmd ++ " exited with error status " ++ show n ++ "."
 > eval' virtuals Mkeof = return Seq.empty
 
 A recipe is executed by supplying the recipe as standard input to the shell.

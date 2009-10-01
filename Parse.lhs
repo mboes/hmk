@@ -87,7 +87,7 @@ V : The targets of this rule are marked as virtual. They are distinct
 >                      Mkfile
 >             | Mkassign AssignAttr String (Seq Token) Mkfile
 >             | Mkinsert Token Mkfile -- lines beginning with '<'
->             | Mkinpipe Token Mkfile -- lines beginning with '<|'
+>             | Mkinpipe (Seq Token) Mkfile -- lines beginning with '<|'
 >             | Mkeof
 
 Parsing produces unevaluated rules, represented by the PRule type. Evaluation
@@ -108,20 +108,21 @@ targets must be escaped. This is to simplify the implementation slightly.
 >         <|> substitution
 >         <|> collation
 >
-> reference = Ref <$> do
+> reference = (Ref <$> do
 >   char '$'
 >   -- $name or ${name} or ${name:A%B=C%D}
->   name <|> bname
+>   name <|> bname) <?> "reference"
 >     -- banned characters from variable references according to rc(1) manual.
 >     where name = Lit <$> many1 (noneOf " \t\n#;&|^$=`'{}()<>:")
 >           bname = between (char '{') (char '}') collation
 >
-> substitution = between (char '{') (char '}') $ do
+> substitution = (between (char '{') (char '}') $ do
 >                      a <- quotableTill "%"; char '%'
 >                      b <- quotableTill "="; char '='
 >                      c <- quotableTill "%"; char '%'
 >                      d <- quotableTill "}"
->                      return (error "Unimplemented.") -- xxx
+>                      return (error "Unimplemented.")) -- xxx
+>                <?> "substitution"
 
 A literal or a collation of tokens.
 
@@ -131,7 +132,7 @@ A literal or a collation of tokens.
 >     [l] -> return l
 >     toks -> return $ Coll (Seq.fromList toks)
 >
-> literal = Lit <$> quotableTill " \t\n:$"
+> literal = (Lit <$> quotableTill " \t\n:$") <?> "literal"
 
 "Special characters may be quoted using single quotes '' as in rc(1)."
 
@@ -156,7 +157,7 @@ Munch all whitespace on a line.
 
 > p_toplevel = do
 >   many (newline <|> p_comment)
->   p_assignment <|> p_rule <|> p_insert <|> p_inpipe <|> (Mkeof <$ eof)
+>   p_inpipe <|> p_insert <|> p_assignment <|> p_rule <|> (Mkeof <$ eof)
 >
 > p_comment = char '#' <* manyTill anyChar newline
 
@@ -197,6 +198,6 @@ Munch all whitespace on a line.
 >     where collect = (do indentation; (:) <$> (many (noneOf "\n") <* newline) <*> collect)
 >                     <|> return []
 >
-> p_insert = char '*' >> return undefined
+> p_inpipe = Mkinpipe <$> (try (string "<|") *> (Seq.fromList <$> sepBy1 token whitespace) <* newline) <*> p_toplevel
 >
-> p_inpipe = char '*' >> return undefined
+> p_insert = Mkinsert <$> (char '<' *> token <* newline) <*> p_toplevel
