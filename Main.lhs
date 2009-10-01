@@ -45,14 +45,15 @@ The exit code of the command is the exit code of the last recipe executed.
 > main = do
 >   targets <- map File <$> getArgs
 >   metarules <- eval =<< parse "mkfile" <$> readFile "mkfile"
->   let rules = process Eval.isStale $ Seq.toList $
->               instantiateRecurse (Seq.fromList targets) metarules
+>   let rules = Seq.toList $ instantiateRecurse (Seq.fromList targets) metarules
 >   when (null rules) (fail "No rules in mkfile.")
+>   -- completed and coalesced rules.
+>   let crules = process Eval.isStale rules
 
 Per the mk man page, if no targets are specified on the command line, then
 assume the target is that of the first rule.
 
 >   schedule <- case targets of
->               [] -> mk rules [target (head rules)]
->               _  -> mk rules targets
+>                 [] -> mk crules [target (head rules)]
+>                 _  -> mk crules targets
 >   sequence_ schedule
