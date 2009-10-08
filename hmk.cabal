@@ -30,6 +30,7 @@ library
     exposed-modules: Control.Hmk
                      Control.Hmk.Analyze
                      Control.Hmk.IO
+                     Control.Hmk.Concurrent
 
 executable hmk
     main-is:         Main.lhs

@@ -16,11 +16,13 @@ A Haskell implementation of the plan9 mk program. This can be used as
 a standalone program or as a library, for convenience.
 
 > module Control.Hmk ( module Control.Hmk.Analyze
->                    , mk
->                    , Cmp, Rule(..), Task
+>                    , mk, mkConcurrent
+>                    , Cmp, Rule(..)
+>                    , Task, DepGraph, Tree(..)
 >                    , Schedule, Result(..) ) where
 >
 > import Control.Hmk.Analyze
+> import Control.Hmk.Concurrent
 > import Control.Applicative
 > import Control.Monad.State
 > import Control.Monad.Reader
@@ -131,6 +133,12 @@ Let's piece everything together.
 
 > mk :: (Ord a, Applicative m, Monad m) => [Rule m a] -> [a] -> m (Schedule m)
 > mk rules targets = schedule <$> (prune $ depgraph rules targets)
+
+A version running as many as the given number of jobs simultaneously.
+(Equivalent of make -jN.)
+
+> mkConcurrent :: (Ord a, Show a) => Int -> [Rule IO a] -> [a] -> IO ()
+> mkConcurrent jobs rules targets = processTree jobs =<< (prune $ depgraph rules targets)
 
 ** Tests **
 

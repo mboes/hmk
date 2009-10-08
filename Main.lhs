@@ -50,7 +50,6 @@ also the parser's job to carry forward any variable substitutions.
 Per the mk man page, if no targets are specified on the command line, then
 assume the target is that of the first rule.
 
->   schedule <- case targets of
->                 [] -> mk crules [target (head rules)]
->                 _  -> mk crules targets
->   sequence_ schedule
+>   if null targets then
+>       mkConcurrent 1 crules [target (head rules)] else
+>       mkConcurrent 1 crules targets

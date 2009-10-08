@@ -7,3 +7,5 @@
 >                      , prereqs :: [a]
 >                      , recipe :: Maybe ([a] -> Task m)
 >                      , isStale :: Cmp m a }
+> type DepGraph m a = [Tree m a]
+> data Tree m a = Node a (DepGraph m a) (Rule m a)
