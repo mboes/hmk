@@ -44,7 +44,7 @@ also the parser's job to carry forward any variable substitutions.
 >                | OptQuestion | OptAll
 >                  deriving (Eq, Ord, Show)
 >
-> options = [ Option ['a'] [] (NoArg OptAll)
+> options = [ Option ['a', 'B'] [] (NoArg OptAll)
 >                    "Unconditionally make all targets."
 >           , Option ['f'] ["file"] (ReqArg OptMkfile "FILE")
 >                    "Read FILE as an mkfile."
