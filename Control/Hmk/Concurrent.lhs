@@ -54,8 +54,8 @@ pulled out of the state transformed IO monad and executed.
 >             signal <- liftIO $ newEmptyMVar
 >             modify (Map.insert x signal)
 >             return $ do
->                 waitQSem sem
 >                 sequence ws
+>                 waitQSem sem
 >                 result <- maybe (return TaskSuccess) ($ prereqs rule) (recipe rule)
 >                 case result of
 >                   TaskSuccess -> do
