@@ -6,7 +6,9 @@ homepage:       http://code.haskell.org/~mboes/hmk
 synopsis:       A make alternative based on Plan9's mk.
 description:
         Clone of Plan9's mk command, said to have \"improved on make by
-        removing all the vowels from the name\".
+        removing all the vowels from the name\". Most features of mk
+        are implemented, including basic meta-rules support and
+        concurrent execution of jobs.
         .
         The library exports a generic dependency graph traversal that
         can be used independently of the rest.
