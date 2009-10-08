@@ -34,9 +34,6 @@ also the parser's job to carry forward any variable substitutions.
 > import Control.Applicative
 > import qualified Data.Sequence as Seq
 > import qualified Data.Foldable as Seq
-
-The exit code of the command is the exit code of the last recipe executed.
-
 > import System.IO
 > import System.Environment
 >
