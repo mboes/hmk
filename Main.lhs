@@ -36,11 +36,38 @@ also the parser's job to carry forward any variable substitutions.
 > import qualified Data.Foldable as Seq
 > import System.IO
 > import System.Environment
+> import System.Exit
+> import System.Console.GetOpt
 >
+>
+> data HmkOption = OptHelp | OptJobs Int
+>                  deriving (Eq, Ord, Show)
+>
+> options = [ Option ['j'] ["jobs"] (ReqArg (OptJobs . read) "N")
+>                    "Allow N jobs at once."
+>           , Option ['h'] ["help"] (NoArg OptHelp)
+>                    "This usage information." ]
+>
+> usage = "Usage: hmk [OPTION]... [TARGET]..."
+>
+> printUsage = hPutStrLn stderr usage
+>
+> printHelp = do
+>   let header = usage ++ "\nOptions:"
+>   putStrLn (usageInfo header options)
+>
+> bailout = printUsage >> exitFailure
 >
 > main :: IO ()
 > main = do
->   targets <- map File <$> getArgs
+>   (opts, other, errs) <- getOpt RequireOrder options <$> getArgs
+>   unless (null errs) $ do
+>          hPutStr stderr (concat errs)
+>          exitFailure
+>   when (OptHelp `elem` opts) (printHelp >> exitSuccess)
+>   let targets = map File other
+>       -- number of jobs to run simultaneously.
+>       slots = foldr (\x y -> case x of OptJobs j -> j; _ -> y) 1 opts
 >   metarules <- eval =<< parse "mkfile" <$> readFile "mkfile"
 >   let rules = Seq.toList $ instantiateRecurse (Seq.fromList targets) metarules
 >   when (null rules) (fail "No rules in mkfile.")
@@ -51,5 +78,5 @@ Per the mk man page, if no targets are specified on the command line, then
 assume the target is that of the first rule.
 
 >   if null targets then
->       mkConcurrent 1 crules [target (head rules)] else
->       mkConcurrent 1 crules targets
+>       mkConcurrent slots crules [target (head rules)] else
+>       mkConcurrent slots crules targets
