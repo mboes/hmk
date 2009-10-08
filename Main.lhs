@@ -40,10 +40,12 @@ also the parser's job to carry forward any variable substitutions.
 > import System.Console.GetOpt
 >
 >
-> data HmkOption = OptHelp | OptJobs Int
+> data HmkOption = OptHelp | OptJobs Int | OptMkfile FilePath
 >                  deriving (Eq, Ord, Show)
 >
-> options = [ Option ['j'] ["jobs"] (ReqArg (OptJobs . read) "N")
+> options = [ Option ['f'] ["file"] (ReqArg OptMkfile "FILE")
+>                    "Read FILE as an mkfile."
+>           , Option ['j'] ["jobs"] (ReqArg (OptJobs . read) "N")
 >                    "Allow N jobs at once."
 >           , Option ['h'] ["help"] (NoArg OptHelp)
 >                    "This usage information." ]
@@ -68,7 +70,8 @@ also the parser's job to carry forward any variable substitutions.
 >   let targets = map File other
 >       -- number of jobs to run simultaneously.
 >       slots = foldr (\x y -> case x of OptJobs j -> j; _ -> y) 1 opts
->   metarules <- eval =<< parse "mkfile" <$> readFile "mkfile"
+>       mkfile = foldr (\x y -> case x of OptMkfile f -> f; _ -> y) "mkfile" opts
+>   metarules <- eval =<< parse mkfile <$> readFile mkfile
 >   let rules = Seq.toList $ instantiateRecurse (Seq.fromList targets) metarules
 >   when (null rules) (fail "No rules in mkfile.")
 >   -- completed and coalesced rules.
