@@ -40,13 +40,15 @@ also the parser's job to carry forward any variable substitutions.
 > import System.Console.GetOpt
 >
 >
-> data HmkOption = OptHelp | OptJobs Int | OptMkfile FilePath
+> data HmkOption = OptHelp | OptJobs Int | OptMkfile FilePath | OptQuestion
 >                  deriving (Eq, Ord, Show)
 >
 > options = [ Option ['f'] ["file"] (ReqArg OptMkfile "FILE")
 >                    "Read FILE as an mkfile."
 >           , Option ['j'] ["jobs"] (ReqArg (OptJobs . read) "N")
 >                    "Allow N jobs at once."
+>           , Option ['q'] ["question"] (NoArg OptQuestion)
+>                    "Run no commands; exit status says if up to date."
 >           , Option ['h'] ["help"] (NoArg OptHelp)
 >                    "This usage information." ]
 >
@@ -76,6 +78,13 @@ also the parser's job to carry forward any variable substitutions.
 >   when (null rules) (fail "No rules in mkfile.")
 >   -- completed and coalesced rules.
 >   let crules = process Eval.isStale rules
+
+Question mode.
+
+>   when (OptQuestion `elem` opts) $ do
+>          let ts = if null targets then [target (head rules)] else targets
+>          schedule <- mk crules targets
+>          if null schedule then exitSuccess else exitFailure
 
 Per the mk man page, if no targets are specified on the command line, then
 assume the target is that of the first rule.
