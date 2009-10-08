@@ -40,10 +40,13 @@ also the parser's job to carry forward any variable substitutions.
 > import System.Console.GetOpt
 >
 >
-> data HmkOption = OptHelp | OptJobs Int | OptMkfile FilePath | OptQuestion
+> data HmkOption = OptHelp | OptJobs Int | OptMkfile FilePath
+>                | OptQuestion | OptAll
 >                  deriving (Eq, Ord, Show)
 >
-> options = [ Option ['f'] ["file"] (ReqArg OptMkfile "FILE")
+> options = [ Option ['a'] [] (NoArg OptAll)
+>                    "Unconditionally make all targets."
+>           , Option ['f'] ["file"] (ReqArg OptMkfile "FILE")
 >                    "Read FILE as an mkfile."
 >           , Option ['j'] ["jobs"] (ReqArg (OptJobs . read) "N")
 >                    "Allow N jobs at once."
@@ -75,9 +78,12 @@ also the parser's job to carry forward any variable substitutions.
 >       mkfile = foldr (\x y -> case x of OptMkfile f -> f; _ -> y) "mkfile" opts
 >   metarules <- eval =<< parse mkfile <$> readFile mkfile
 >   let rules = Seq.toList $ instantiateRecurse (Seq.fromList targets) metarules
+>   let arules = if OptAll `elem` opts
+>                then map (\r -> r{Control.Hmk.isStale = \_ _ -> return True}) rules
+>                else rules
 >   when (null rules) (fail "No rules in mkfile.")
 >   -- completed and coalesced rules.
->   let crules = process Eval.isStale rules
+>   let crules = process Eval.isStale arules
 
 Question mode.
 
