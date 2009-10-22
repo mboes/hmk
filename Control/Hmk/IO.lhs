@@ -19,8 +19,8 @@ using user-defined comparison functions in the IO monad.
 This module should be imported qualified.
 
 > module Control.Hmk.IO where
+>
 > import Control.Hmk hiding (isStale)
-> import Control.Monad (foldM)
 > import System.FilePath
 > import System.Posix.Files
 > import System.Exit
@@ -44,11 +44,3 @@ Project exit code to task result.
 > testExitCode :: ExitCode -> IO Result
 > testExitCode ExitSuccess = return TaskSuccess
 > testExitCode (ExitFailure _) = return TaskFailure
-
-Perform each system action, aborting if an action returns
-non-zero exit code.
-
-> abortOnError :: [IO Result] -> IO Result
-> abortOnError = foldM f TaskSuccess where
->     f TaskSuccess k = k
->     f TaskFailure _ = error "Command exited with non-zero status."
