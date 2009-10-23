@@ -1,8 +1,8 @@
 name:           hmk
-version:        0.9.3
+version:        0.9.4
 author:         Mathieu Boespflug
 maintainer:     Mathieu Boespflug <mboes@tweag.net>
-homepage:       http://code.haskell.org/~mboes/hmk
+homepage:       http://www.github.com/mboes/hmk
 synopsis:       A make alternative based on Plan9's mk.
 description:
         Clone of Plan9's mk command, said to have \"improved on make by
