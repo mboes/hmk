@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import qualified Data.Sequence as Seq
 > import qualified Data.Traversable as Seq
 > import qualified Data.Foldable as Seq
+> import Data.Map (Map)
 > import qualified Data.Map as Map
 > import qualified Data.Foldable as Map
 > import qualified Data.Set as Set
@@ -107,12 +108,24 @@ this instantiation is performed post evaluation.
 > type Stem = String
 >
 > addVariable attr var val = do
->   modify (Map.insert var (val :: Seq String))
+>   modify (fmap (Map.insert var (val :: Seq String)))
 >   case attr of
 >     Export -> liftIO $ setEnv var (freeze val) True
 >     Local -> return ()
->
-> lookupVariable var = Map.findWithDefault (Seq.empty) var <$> get
+
+The value of a variable is looked up by decreasing order of precedence in the
+following places:
+
+ - assignments on the command line,
+ - assignments in the mkfile,
+ - the environment.
+
+> lookupVariable var = do
+>   maybe Seq.empty id . msum <$>
+>         sequence [ Map.lookup var . fst <$> get
+>                  , Map.lookup var . snd <$> get
+>                  , fmap Seq.singleton <$> liftIO (getEnv var)
+>                  , return (Just Seq.empty) ]
 >
 > evalToken (Lit x) = return (Seq.singleton x)
 > evalToken (Coll toks) = Seq.singleton <$> Seq.concat <$>
@@ -123,8 +136,8 @@ this instantiation is performed post evaluation.
 >                var <- evalToken tok
 >                lookupVariable (freeze var)
 >
-> eval :: Mkfile -> IO (Seq (Stem -> Rule IO Target))
-> eval mkfile = evalStateT (init >> go) Map.empty
+> eval :: Map.Map String (Seq String) -> Mkfile -> IO (Seq (Stem -> Rule IO Target))
+> eval cmdline mkfile = evalStateT (init >> go) (cmdline, Map.empty)
 >     where init = addVariable Export "MKSHELL" (Seq.singleton defaultShell)
 >           go = mdo (rules, RevAppend virtuals) <- runWriterT (eval' virtuals mkfile)
 >                    return rules
@@ -248,5 +261,5 @@ The default comparison action.
 
 Version of eval where stems are instantiated to the empty string.
 
-> evalNoMeta :: Mkfile -> IO (Seq (Rule IO Target))
-> evalNoMeta mkfile = fmap ($ "") <$> eval mkfile
+> evalNoMeta :: Map.Map String (Seq String) -> Mkfile -> IO (Seq (Rule IO Target))
+> evalNoMeta cmdline mkfile = fmap ($ "") <$> eval cmdline mkfile

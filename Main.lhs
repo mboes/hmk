@@ -34,6 +34,9 @@ also the parser's job to carry forward any variable substitutions.
 > import Control.Applicative
 > import qualified Data.Sequence as Seq
 > import qualified Data.Foldable as Seq
+> import qualified Data.Map as Map
+> import Data.Either
+> import Data.Char (isAlphaNum)
 > import System.IO
 > import System.Environment
 > import System.Exit
@@ -55,7 +58,7 @@ also the parser's job to carry forward any variable substitutions.
 >           , Option ['h'] ["help"] (NoArg OptHelp)
 >                    "This usage information." ]
 >
-> usage = "Usage: hmk [OPTION]... [TARGET]..."
+> usage = "Usage: hmk [OPTION]... [ASSIGNMENT]... [TARGET]..."
 >
 > printUsage = hPutStrLn stderr usage
 >
@@ -64,7 +67,18 @@ also the parser's job to carry forward any variable substitutions.
 >   putStrLn (usageInfo header options)
 >
 > bailout = printUsage >> exitFailure
->
+
+The arguments given on the command line can be of the form a=b. This is pins
+the value for variable $a to be 'b'. The following function splits out
+arguments of this form from the rest.
+
+> getAssignments :: [String] -> (Map.Map String (Seq.Seq String), [String])
+> getAssignments args = (Map.fromList assigns, targets) where
+>     (assigns, targets) = partitionEithers $ map p_assignment args
+>     p_assignment arg = case span isAlphaNum arg of
+>                          (var, '=':rest) -> Left (var, Seq.fromList $ words rest)
+>                          _ -> Right arg
+
 > main :: IO ()
 > main = do
 >   (opts, other, errs) <- getOpt RequireOrder options <$> getArgs
@@ -72,11 +86,11 @@ also the parser's job to carry forward any variable substitutions.
 >          hPutStr stderr (concat errs)
 >          exitFailure
 >   when (OptHelp `elem` opts) (printHelp >> exitSuccess)
->   let targets = map File other
+>   let (assigns, targets) = fmap (map File) (getAssignments other)
 >       -- number of jobs to run simultaneously.
 >       slots = foldr (\x y -> case x of OptJobs j -> j; _ -> y) 1 opts
 >       mkfile = foldr (\x y -> case x of OptMkfile f -> f; _ -> y) "mkfile" opts
->   metarules <- eval =<< parse mkfile <$> readFile mkfile
+>   metarules <- eval assigns =<< parse mkfile <$> readFile mkfile
 >   let rules = Seq.toList $ instantiateRecurse (Seq.fromList targets) metarules
 >   let arules = if OptAll `elem` opts
 >                then map (\r -> r{Control.Hmk.isStale = \_ _ -> return True}) rules
