@@ -49,7 +49,7 @@ reference.
 
 Rule flags, according to the mk manual for plan9:
 
- status, the target is deleted.
+D : If the recipe exits with a non-null status, the target is deleted.
 
 E : Continue execution if the recipe draws errors.
 
