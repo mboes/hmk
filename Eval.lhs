@@ -13,7 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-> module Eval (Target(..), eval, evalNoMeta, Eval.isStale, substituteStem) where
+> module Eval (Target(..), Stem(..), eval, evalNoMeta, Eval.isStale, substituteStem) where
 >
 > import Parse
 > import Control.Hmk
@@ -32,6 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 > import Control.Monad.Writer
 > import Data.List (intercalate)
 > import Data.Maybe (isNothing)
+> import Data.Char (isDigit)
 >
 > import System.IO
 > import System.Directory
@@ -63,6 +64,7 @@ target is virtual or not now, if we promise to build it later.
 > data Target = File { name :: FilePath }
 >             | Virtual { name :: String }
 >             | Pattern { name :: String }
+>             | REPattern { name :: String }
 >               deriving Show
 
 > newtype RevAppend a = RevAppend a
@@ -105,7 +107,7 @@ return value is a sequence of functions mapping stems to rules. This is
 because stems are synthesized as a by-product of meta-rule instantiaton, but
 this instantiation is performed post evaluation.
 
-> type Stem = String
+> data Stem = Stem String | RESubMatches [String] | NoStem
 >
 > addVariable attr var val = do
 >   modify (fmap (Map.insert var (val :: Seq String)))
@@ -143,18 +145,17 @@ following places:
 >                    return rules
 >
 > eval' virtuals (Mkrule ts flags ps r cont) = do
->   let tag t = if t `elem` virtuals
->               then Virtual t
->               else case t of
->                      '%':_ -> Pattern t
->                      _ -> File t
+>   flagsv <- evalFlags flags
+>   let tag t | t `elem` virtuals        = Virtual t
+>             | Set.member Flag_R flagsv = REPattern t
+>             | '%':_ <- t               = Pattern t
+>             | otherwise                = File t
 >   tsv <- Seq.msum <$> Seq.mapM evalToken ts
 >   psv <- fmap tag <$> Seq.msum <$> Seq.mapM evalToken ps
->   flagsv <- evalFlags flags
 >   shell <- (`Seq.index` 0) <$> lookupVariable "MKSHELL"
->   let f tv stem = let t | Set.member Flag_V flagsv = Virtual tv
->                         | '%':_ <- tv              = Pattern tv
->                         | otherwise                = File tv
+>   let f tv stem = let t = if Set.member Flag_V flagsv
+>                           then Virtual tv
+>                           else tag tv
 >                       rv = if Set.member Flag_N flagsv && isNothing r
 >                            then Just $ evalRecipe tsv t flagsv psv stem shell ("touch " ++ name t)
 >                            else fmap (evalRecipe tsv t flagsv psv stem shell) r
@@ -196,8 +197,12 @@ A recipe is executed by supplying the recipe as standard input to the shell.
 (Note that unlike make, hmk feeds the entire recipe to the shell rather than
 running each line of the recipe separately.)
 
-> substituteStem stem (Pattern ('%':suffix)) = File (stem ++ suffix)
-> substituteStem stem x = x
+> substituteStem (Stem stem) (Pattern ('%':suffix)) = File (stem ++ suffix)
+> substituteStem (RESubMatches matches) (REPattern pat) = File (subst pat)
+>     where subst "" = ""
+>           subst ('\\':n:xs) | isDigit n = matches !! (read [n] - 1) ++ subst xs
+>           subst (x:xs) = x : subst xs
+> substituteStem _ x = x
 >
 > evalRecipe alltarget target flags prereq stem shell text newprereq = do
 >   pid <- show <$> getProcessID
@@ -207,7 +212,12 @@ running each line of the recipe separately.)
 >   setEnv "nproc" (show 0) True
 >   setEnv "pid" pid True
 >   setEnv "prereq" (freeze (fmap (name . substituteStem stem) prereq)) True
->   setEnv "stem" stem True
+>   case stem of
+>     Stem stem -> setEnv "stem" stem True
+>     RESubMatches stems -> do
+>       let nstems = zip [1..] stems
+>       mapM_ (\(n, stem) -> setEnv ("stem" ++ show n) stem True) nstems
+>     NoStem -> return ()
 >   setEnv "target" (name $ substituteStem stem $ target) True
 >   let p = if Set.member Flag_Q flags
 >           then proc shell ["-e"]
@@ -262,4 +272,4 @@ The default comparison action.
 Version of eval where stems are instantiated to the empty string.
 
 > evalNoMeta :: Map.Map String (Seq String) -> Mkfile -> IO (Seq (Rule IO Target))
-> evalNoMeta cmdline mkfile = fmap ($ "") <$> eval cmdline mkfile
+> evalNoMeta cmdline mkfile = fmap ($ NoStem) <$> eval cmdline mkfile

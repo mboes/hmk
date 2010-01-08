@@ -68,9 +68,9 @@ also the parser's job to carry forward any variable substitutions.
 >
 > bailout = printUsage >> exitFailure
 
-The arguments given on the command line can be of the form a=b. This is pins
-the value for variable $a to be 'b'. The following function splits out
-arguments of this form from the rest.
+The arguments given on the command line can be of the form a=b. This pins the
+value for variable $a to be 'b'. The following function splits out arguments
+of this form from the rest.
 
 > getAssignments :: [String] -> (Map.Map String (Seq.Seq String), [String])
 > getAssignments args = (Map.fromList assigns, targets) where

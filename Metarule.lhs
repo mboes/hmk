@@ -33,6 +33,7 @@ Remove any uninstantiated meta-rule.
 > cleanup = Seq.foldr f Seq.empty where
 >     f r rs = case target r of
 >                Pattern _ -> rs
+>                REPattern _ -> rs
 >                _ -> r Seq.<| rs
 
 Instantiation of meta-rules. 'instantiate' is a helper function for
@@ -40,8 +41,6 @@ Instantiation of meta-rules. 'instantiate' is a helper function for
 and then recursively instantiates meta-rules with the prerequesites of the
 matching rules.
 
-> type Stem = String
->
 > seqFilter :: (a -> Bool) -> Seq a -> Seq a
 > seqFilter f = Seq.foldr (\x xs -> if f x then x Seq.<| xs else xs) Seq.empty
 >
@@ -58,24 +57,46 @@ matching rules.
 >     collectMatches (Pattern ('%':suffix)) ts =
 >         let re = compile ("(.*)" ++ suffix ++ "$") [anchored, dollar_endonly]
 >         -- The prefix is in the captured sub-pattern at index 1.
->         in seqCatMaybes (fmap (\t -> fmap (!! 1) (match re t [])) (fmap name ts))
+>         in fmap Stem $ seqCatMaybes (fmap (\t -> fmap (!! 1) (match re t [])) (fmap name ts))
 >     collectMatches s ts = Seq.empty
 >     -- Substitute the stem for the percent characters in targets and
 >     -- prerequesites.
 >     expand stem r@Rule{target,prereqs} = r { target = substituteStem stem target
 >                                            , prereqs = map (substituteStem stem) prereqs }
->
+
+Also instantiate meta-rules whose patterns are regular expressions.
+
+> instantiateRE :: Seq Target   -- ^ Targets.
+>               -> Seq (Stem -> Rule a Target)
+>               -> Seq (Rule a Target)
+> instantiateRE targets closures = join $ fmap f closures where
+>     f clo = let schema = target (clo undefined)
+>                 matchdata = collectMatches schema targets
+>             in fmap (\(match, subs) -> expand match subs (clo subs)) matchdata
+>     collectMatches (REPattern re_string) ts =
+>         let re = compile re_string []
+>         -- Match is first element, captured submatches are in the tail.
+>         in fmap (\xs -> (head xs, RESubMatches (tail xs))) $
+>            seqCatMaybes (fmap (\t -> match re t []) (fmap name ts))
+>     collectMatches s ts = Seq.empty
+>     -- Substitute match for target and submatches for references in
+>     -- prerequesites.
+>     expand match submatches r@Rule{target,prereqs} =
+>         r { target = File match
+>           , prereqs = map (substituteStem submatches) prereqs }
+
 > instantiateRecurse :: Seq Target
 >                    -> Seq (Stem -> Rule a Target)
 >                    -> Seq (Rule a Target)
 > instantiateRecurse targets closures =
 >     let new = evalState (go targets) Set.empty
 >     in cleanup origrules Seq.>< new
->     where origrules = fmap ($ "") closures
+>     where origrules = fmap ($ NoStem) closures
 >           go targets | Seq.null targets = return Seq.empty
 >                      | otherwise = do
 >             seen <- get
->             let rules = instantiate targets closures
+>             let rules = --instantiate targets closures Seq.><
+>                         instantiateRE targets closures
 >                 ts = (Set.\\ seen) $ Set.unions $ Seq.toList $
 >                      fmap (Set.fromList . prereqs) $
 >                      seqFilter (\r -> target r `Seq.elem` targets) origrules

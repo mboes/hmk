@@ -22,3 +22,6 @@ world:V: a.o
 
 cmp:Pcmp -s: d e
 	echo $prereq
+
+(h|i|j):R: \1\1
+	touch $stem1
