@@ -24,7 +24,6 @@ copyright Lucent Technologies.
 > import Data.Sequence (Seq)
 > import qualified Data.Sequence as Seq
 > import Control.Applicative hiding ((<|>), many)
-> import System.FilePath (FilePath)
 
 
 "A mkfile consists of assignments (described under `Environment') and rules. A

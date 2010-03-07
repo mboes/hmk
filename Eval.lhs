@@ -21,11 +21,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 >
 > import Data.Sequence (Seq)
 > import qualified Data.Sequence as Seq
-> import qualified Data.Traversable as Seq
 > import qualified Data.Foldable as Seq
+> import qualified Data.Traversable as Seq
 > import Data.Map (Map)
 > import qualified Data.Map as Map
-> import qualified Data.Foldable as Map
 > import qualified Data.Set as Set
 > import Control.Applicative
 > import Control.Monad.State
@@ -138,7 +137,7 @@ following places:
 >                var <- evalToken tok
 >                lookupVariable (freeze var)
 >
-> eval :: Map.Map String (Seq String) -> Mkfile -> IO (Seq (Stem -> Rule IO Target))
+> eval :: Map String (Seq String) -> Mkfile -> IO (Seq (Stem -> Rule IO Target))
 > eval cmdline mkfile = evalStateT (init >> go) (cmdline, Map.empty)
 >     where init = addVariable Export "MKSHELL" (Seq.singleton defaultShell)
 >           go = mdo (rules, RevAppend virtuals) <- runWriterT (eval' virtuals mkfile)
@@ -271,5 +270,5 @@ The default comparison action.
 
 Version of eval where stems are instantiated to the empty string.
 
-> evalNoMeta :: Map.Map String (Seq String) -> Mkfile -> IO (Seq (Rule IO Target))
+> evalNoMeta :: Map String (Seq String) -> Mkfile -> IO (Seq (Rule IO Target))
 > evalNoMeta cmdline mkfile = fmap ($ NoStem) <$> eval cmdline mkfile
