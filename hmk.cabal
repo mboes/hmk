@@ -28,7 +28,7 @@ tested-with:    GHC ==6.10
 
 library
     build-depends:   base < 5, containers
-    extensions:	     RecursiveDo, PatternGuards
+    extensions:	     PatternGuards
     exposed-modules: Control.Hmk
                      Control.Hmk.Analyze
                      Control.Hmk.IO
@@ -38,7 +38,7 @@ executable hmk
     main-is:         Main.lhs
     ghc-options:     -fwarn-unused-imports
     other-modules:   Parse, Eval, Metarule
-    extensions:	     RecursiveDo, PatternGuards, NamedFieldPuns
+    extensions:	     PatternGuards, NamedFieldPuns
     build-depends:   base < 5, bytestring, containers,
                      directory, process, unix, filepath >= 1.1,
                      mtl, parsec >= 3.0.0, pcre-light >= 0.3

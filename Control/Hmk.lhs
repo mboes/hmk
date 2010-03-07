@@ -85,10 +85,9 @@ Invariant 3: every prerequisite should be the target of some rule.
 >       if x `Set.member` visited then
 >          error "Cycle detected." else
 >           case find (\r -> target r == x) rules of
->             Just rule -> mdo
->               let n = Node x ps rule
+>             Just rule -> do
 >               ps <- local (Set.insert x) $ mapM aux (prereqs rule)
->               return n
+>               return $ Node x ps rule
 >             Nothing -> error "Invariant 3 violated."
 
 From the mk(1) manual:
