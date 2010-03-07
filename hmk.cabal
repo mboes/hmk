@@ -1,5 +1,5 @@
 name:           hmk
-version:        0.9.4
+version:        0.9.6
 author:         Mathieu Boespflug
 maintainer:     Mathieu Boespflug <mboes@tweag.net>
 homepage:       http://www.github.com/mboes/hmk
@@ -15,8 +15,8 @@ description:
         .
         The documentation is embedded in the literate Haskell source.
         .
-        /Note:/ the library portion is released to the /public
-        domain/. Those source files that are not part of the library
+        /Note:/ the library portion is released to the /public domain/.
+        Those source files that are not part of the library
         are released under GPLv3 or later.
 category:       Control, Development, Distribution
 license:        GPL
