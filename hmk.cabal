@@ -24,7 +24,7 @@ license-file:   COPYING
 copyright:      (c) 2008-2009. Mathieu Boespflug <mboes@tweag.net>
 cabal-version:  >= 1.2.0
 build-type:     Simple
-tested-with:    GHC ==6.10
+tested-with:    GHC == 6.12.1
 
 library
     build-depends:   base < 5, containers
@@ -38,7 +38,7 @@ executable hmk
     main-is:         Main.lhs
     ghc-options:     -fwarn-unused-imports
     other-modules:   Parse, Eval, Metarule
-    extensions:	     PatternGuards, NamedFieldPuns
+    extensions:	     PatternGuards, NamedFieldPuns, RecursiveDo
     build-depends:   base < 5, bytestring, containers,
                      directory, process, unix, filepath >= 1.1,
                      mtl, parsec >= 3.0.0, pcre-light >= 0.3

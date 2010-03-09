@@ -26,7 +26,6 @@ the Metarule module. In fact most of the work is done by the parser, as it is
 also the parser's job to carry forward any variable substitutions.
 
 > import Control.Hmk
-> import Control.Hmk.Analyze
 > import Parse
 > import Eval
 > import Metarule

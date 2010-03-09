@@ -21,7 +21,6 @@ This module should be imported qualified.
 > module Control.Hmk.IO where
 >
 > import Control.Hmk hiding (isStale)
-> import System.FilePath
 > import System.Posix.Files
 > import System.Exit
 
