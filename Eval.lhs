@@ -13,6 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+> {-# LANGUAGE CPP #-}
 > module Eval (Target(..), Stem(..), eval, evalNoMeta, Eval.isStale, substituteStem) where
 >
 > import Parse
@@ -46,6 +47,7 @@ trace execution, respectively.
 
 > defaultShell = "/bin/sh"
 
+#if ! MIN_VERSION_mtl(2,0,0)
 > instance Monad m => Applicative (StateT s m) where
 >     pure = return
 >     (<*>) = ap
@@ -53,6 +55,7 @@ trace execution, respectively.
 > instance (Monoid w, Monad m) => Applicative (WriterT w m) where
 >     pure = return
 >     (<*>) = ap
+#endif
 
 Targets are either regular files, virtual or patterns. After instantiation of
 meta-rules the patterns disappear, leaving only files and virtual targets. But
