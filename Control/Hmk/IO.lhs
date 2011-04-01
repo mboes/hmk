@@ -29,7 +29,7 @@ Staleness check.
 > isStale :: Cmp IO FilePath
 > isStale x y = do
 >   xe <- fileExist x
->   ye <- fileExist x
+>   ye <- fileExist y
 >   if not (xe && ye) then
 >       return True else
 >       do xstat <- getFileStatus x
