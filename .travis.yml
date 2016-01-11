@@ -49,7 +49,7 @@ install:
 - case "$BUILD" in
     stack)
       stack $ARGS setup --no-terminal;
-      stack $ARGS build --only-snapshot --test
+      stack $ARGS build --no-terminal --only-snapshot --test
       ;;
     cabal)
       travis_retry cabal update;
