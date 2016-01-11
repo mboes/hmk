@@ -1,0 +1,10 @@
+resolver: lts-2.22
+packages:
+- '.'
+
+nix:
+  # --nix on the command-line to enable.
+  enable: false
+  packages:
+  - pcre
+  - pkgconfig

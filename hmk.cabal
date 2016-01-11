@@ -32,7 +32,7 @@ source-repository head
 
 library
     build-depends:   base < 5, containers
-    extensions:	     PatternGuards
+    extensions:      FlexibleContexts, PatternGuards
     exposed-modules: Control.Hmk
                      Control.Hmk.Analyze
                      Control.Hmk.IO
@@ -42,8 +42,7 @@ executable hmk
     main-is:         Main.lhs
     ghc-options:     -fwarn-unused-imports
     other-modules:   Parse, Eval, Metarule
-    extensions:	     PatternGuards, NamedFieldPuns, RecursiveDo
+    extensions:      FlexibleContexts, PatternGuards, NamedFieldPuns, RecursiveDo
     build-depends:   base < 5, bytestring, containers,
                      directory, process, unix, filepath >= 1.1,
-                     mtl >= 1.1 && < 2.1, parsec >= 3.0.0, pcre-light >= 0.3
-                     
+                     mtl >= 1.1, parsec >= 3.0.0, pcre-light >= 0.3
